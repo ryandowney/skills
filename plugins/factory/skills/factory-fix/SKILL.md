@@ -40,7 +40,9 @@ something needs a decision, not another attempt.
      Mass-Inconclusive means Docker is down — that is not a pass.
    - Frontend: `npm run check`, `npm run build`, and any relevant Playwright spec.
 
-5. **Re-review.** Back to step 1 until PASS or the cap.
+5. **Re-review.** Back to step 1 until PASS or the cap. Every round's reviews run in **fresh
+   subagents** per the isolation rule in `/factory-review` §2 — the context that just made the
+   fixes never re-reviews them.
 
 ---
 

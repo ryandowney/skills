@@ -37,10 +37,18 @@ that was red already is not this diff's finding.
 
 Run them in parallel — they are complementary, not redundant.
 
+**Isolation is mandatory, not implied.** Each review runs in a **fresh subagent** that has not
+edited this branch and carries none of the conversation that produced the code — a context that
+wrote (or fixed) any of the diff would be reviewing its own reasoning. Hand each reviewer exactly
+three things: the diff scope (refs), the plan path when one exists (the statement of intent), and
+the seams to probe. Nothing about how the code came to be. And no reviewer sees another reviewer's
+findings before §3 — consolidation happens there, in this orchestrator, never between them.
+
 1. **Correctness.** `/code-review` if it is model-invocable here; otherwise spawn a reviewer at high
    effort hunting real bugs in the diff: concrete failure scenarios only, verified against the code,
    with `file:line` and severity. Point it at the feature's risky seams explicitly rather than
-   letting it wander.
+   letting it wander, and hand it the plan path — correctness against stated intent, not just
+   against plausibility.
 
 2. **Architecture.** `/architecture-review` — the 14 numbered `CLAUDE.md` rules plus the unnumbered
    ones. Skip re-deriving what `LayerRuleTests`, `HandlerResolutionTests`, `MigrationRegistryTests`

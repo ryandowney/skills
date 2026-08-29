@@ -114,7 +114,9 @@ const plan = await agent(
   `Read the approved plan at ${planPath}. It is the source of truth for a full-stack feature in the repo at ${repoDir}.\n` +
   `Decompose it into concrete, ordered implementation tasks split by area: backendTasks (under ${repoDir}/src) and ` +
   `webTasks (under ${webDir}; return an empty array if this repo has no frontend). Each task = a title + a specific ` +
-  `detail an engineer can act on, plus the likely files. Also restate the test cases to cover and which existing test ` +
+  `detail an engineer can act on, plus the likely files. Copy each affected handler's CONTRACT block ` +
+  `from the plan VERBATIM into the detail of the task that implements it — implementers see your task list, ` +
+  `not the plan, and a handler implemented without its contract gets tests written from the code instead. Also restate the test cases to cover and which existing test ` +
   `tier/base class each belongs to (read the test project to get the real names). ${HOUSE_RULES_HINT}`,
   { label: 'decompose-plan', phase: 'Decompose', schema: DECOMPOSE_SCHEMA, effort: 'high' }
 )
@@ -130,6 +132,8 @@ async function implementArea(area, tasks, extra) {
     `You are the ${area} implementer. Repo: ${repoDir} (already on the feature branch). ` +
     `Stay strictly within your area (${area === 'backend' ? 'src/ and docs/' : 'apps/web/'}) — another agent owns the other area. ` +
     `Implement ALL of the following tasks IN ORDER, as production code matching the codebase's existing patterns. ` +
+    `The approved plan at ${planPath} is the statement of intent — consult it whenever a task is ambiguous, and ` +
+    `write each handler's CONTRACT block into the code as part of implementing that handler. ` +
     `${HOUSE_RULES_HINT}\n\nTASKS:\n${taskList}\n\n${extra}\nReturn done=false if you could not finish; list files touched.`,
     { label: `implement:${area}`, phase: 'Implement', schema: IMPL_SCHEMA, model: 'sonnet', effort: 'high' }
   )
@@ -190,7 +194,9 @@ while (true) {
     `The backend at ${repoDir} has failing checks. Build/test summary: ${beRes.summary}. ` +
     `New failures: ${(beRes.newFailures || []).join('; ') || 'see summary'}. ` +
     `Fix the code (and tests where the test is wrong — but never by weakening an assertion into something that ` +
-    `passes regardless of behaviour) so \`${BUILD_CMD}\` and \`${TEST_CMD}\` pass with zero failures. ${HOUSE_RULES_HINT}`,
+    `passes regardless of behaviour) so \`${BUILD_CMD}\` and \`${TEST_CMD}\` pass with zero failures. ` +
+    `Handler CONTRACT blocks in the code (and the plan at ${planPath}) state the INTENDED behaviour — when code ` +
+    `and test disagree, fix toward the contract, never toward whatever the code currently does. ${HOUSE_RULES_HINT}`,
     { label: `fix:backend:r${round}`, phase: 'Fix', model: 'sonnet', effort: 'high' }))
   if (!webRes.passed) fixThunks.push(() => agent(
     `The frontend at ${webDir} has failing checks. Summary: ${webRes.summary}. ` +
