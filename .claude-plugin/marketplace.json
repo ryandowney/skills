@@ -12,7 +12,8 @@
     {
       "name": "factory",
       "source": "./plugins/factory",
-      "description": "Spec \u2192 plan \u2192 build \u2192 review \u2192 fix \u2192 PR pipeline (10 skills), migrated from its newest form (alchinera, 2026-08-26) and genericized."
+      "description": "Spec \u2192 plan \u2192 build \u2192 review \u2192 fix \u2192 PR pipeline (10 skills): conductor, stage skills, and standalone reviews."
     }
-  ]
+  ],
+  "description": "Claude Code skills for spec-to-PR feature work in IDesign-layered .NET + SvelteKit repos."
 }
