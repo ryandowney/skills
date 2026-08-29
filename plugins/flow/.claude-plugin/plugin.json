@@ -1,0 +1,5 @@
+{
+  "name": "flow",
+  "description": "Service-level flow review for IDesign-layered repos (template-derived). /flow [base-ref] extracts every affected request flow from a diff and renders terminal call trees + Mermaid sequence diagrams with payload drill-down.",
+  "version": "0.1.0"
+}

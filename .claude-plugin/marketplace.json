@@ -1,0 +1,11 @@
+{
+  "name": "downey-skills",
+  "owner": { "name": "Ryan Downey" },
+  "plugins": [
+    {
+      "name": "flow",
+      "source": "./plugins/flow",
+      "description": "Service-level flow review: renders a diff as call trees and sequence diagrams through the IDesign layers, with payload drill-down and cited edges."
+    }
+  ]
+}
