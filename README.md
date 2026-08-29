@@ -15,7 +15,7 @@ repo, solution, and namespace at runtime — nothing is hardcoded to one project
 ## Install
 
 ```
-/plugin marketplace add ryandowney/downey-skills
+/plugin marketplace add ryandowney/skills
 /plugin install flow@downey-skills
 /plugin install factory@downey-skills
 ```

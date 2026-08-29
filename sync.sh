@@ -4,6 +4,11 @@
 set -euo pipefail
 
 cd "$(dirname "$0")"
+
+# Pull the latest first, so every machine syncs from the same head.
+if git rev-parse --abbrev-ref @{upstream} >/dev/null 2>&1; then
+  git pull --ff-only
+fi
 PLUGINS=$(python3 -c "import json; print(' '.join(p['name'] for p in json.load(open('.claude-plugin/marketplace.json'))['plugins']))")
 
 run_profile() {
