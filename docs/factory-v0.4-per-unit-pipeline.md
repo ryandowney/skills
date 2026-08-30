@@ -4,6 +4,19 @@
 x.com/0xwhrrari/status/2086784668003598356) — its points 5 (streaming vs barrier joins),
 7 (verification on the edge), and 10 (failure as a local event).*
 
+## Status and decision log
+
+- **2026-08-29 — deferred, leaning against.** Ryan's call after the v0.3.0 upgrades: current
+  performance is already quite good, and runs already take longer than he'd like. v0.4's
+  price — roughly 2–3× the tokens and more wall-clock on small-to-mid features — is exactly the
+  wrong direction while latency is the standing complaint and the failure mode it insures
+  against (replicated mistakes, implementation-derived tests) has not shown up in real runs.
+  Per the article's own cost logic (point 11), coordination is only spent where it earns its
+  keep — so this stays a documented option behind its adoption trigger, not a roadmap item.
+- **If the factory gets attention next, aim it at speed, not granularity** — v0.4 adds agents;
+  the standing pain is duration. Revisit only if fix-loop logs start showing the same mistake
+  corrected across many files, or test-review flags suites written from implementation.
+
 ## The problem
 
 `factory-execute/SKILL.md` opens with the per-unit doctrine — *implement → review → test at the
