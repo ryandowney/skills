@@ -40,7 +40,14 @@ something needs a decision, not another attempt.
      Mass-Inconclusive means Docker is down — that is not a pass.
    - Frontend: `npm run check`, `npm run build`, and any relevant Playwright spec.
 
-5. **Re-review.** Back to step 1 until PASS or the cap. Every round's reviews run in **fresh
+5. **Update the dispositions ledger.** Every finding from this round gets an outcome recorded:
+   `fixed`, `dropped (pre-existing)`, or `disputed (<reason>)`. The ledger is append-only across
+   rounds and is written into the run manifest. Reviewers never see it — they stay fresh — but
+   `/factory-review`'s consolidation step receives it, so a fresh round re-raising an already-
+   dispositioned finding gets the recorded answer instead of a re-litigation. Without this, fresh
+   reviewers make the loop pay to rediscover the same dead ends every round.
+
+6. **Re-review.** Back to step 1 until PASS or the cap. Every round's reviews run in **fresh
    subagents** per the isolation rule in `/factory-review` §2 — the context that just made the
    fixes never re-reviews them.
 

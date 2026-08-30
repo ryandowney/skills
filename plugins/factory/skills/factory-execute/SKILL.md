@@ -66,7 +66,13 @@ component. Not a whole layer, and not a whole feature.
    skill's falsification step is not optional: every `MUST` and `ORDER` line gets its mutation, and
    a test that stays green while its behaviour is sabotaged is rewritten, not accepted.
 
-5. **Read the result.** Spot-check the touched area with a targeted
+5. **Record the run id** from the Workflow result in the run manifest. If the run fails, is
+   interrupted, or needs re-running after a plan edit, **resume it** with `resumeFromRunId` —
+   completed agents return cached results instantly and only failed or new work re-runs. Never
+   restart a partially-completed workflow from scratch; that re-pays for everything that already
+   succeeded.
+
+6. **Read the result.** Spot-check the touched area with a targeted
    `dotnet test --filter "FullyQualifiedName~<TestClass>"` rather than trusting the summary.
 
 ---

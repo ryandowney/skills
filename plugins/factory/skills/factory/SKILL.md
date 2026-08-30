@@ -38,6 +38,18 @@ buying.
 
 ## Pipeline
 
+0. **Route.** Classify the spec before starting any machinery. Judgment picks the route; the three
+   routes themselves are fixed — a probabilistic classifier over deterministic paths:
+
+   | Route | When | What runs |
+   |---|---|---|
+   | `direct` | typo, copy, config, or a single-file change with no test surface | just make the change — no factory |
+   | `single-unit` | one handler-sized change: one unit plus its validation and tests | contracts still written and approved (Gate 1), implement in-session, then `/factory-fix`; the workflow engine is skipped |
+   | `full` | spans layers, new tests across tiers, or touches an auth/permission boundary | the pipeline below |
+
+   State the route and the one-line reason, and record both in the run manifest. When in doubt
+   between `single-unit` and `full`, pick `full` — the router exists to cut waste, not gates.
+
 1. **Baseline.** Run the suite before anything changes; record the count and any known failures.
    Everything after is measured against it. Mass-Inconclusive means Docker is down — fix that first.
 
@@ -54,6 +66,12 @@ buying.
 
 3. **Branch.** `git fetch origin && git checkout -b feature/<slug> origin/main`. Never reuse a
    branch.
+
+   Then start the **run manifest** — a file next to the plan (`<plan basename>-run.md`) recording:
+   route + rationale, branch, baseline, plan path. Append as they happen: the workflow run id from
+   `/factory-execute`, each review round's verdict, and `/factory-fix`'s dispositions ledger. This
+   is the run's durable memory — what ran, why, with what state — and what makes resuming after an
+   interruption possible without archaeology.
 
 4. **Execute** → `/factory-execute` with `planPath`, `repoDir`, `featureBranch`, the baseline. It
    implements, reviews and tests **per unit** — not all at the end — and fix-loops to green. If it

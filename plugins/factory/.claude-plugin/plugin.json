@@ -1,5 +1,5 @@
 {
   "name": "factory",
   "description": "Software-factory suite for IDesign-layered repos: /factory conducts factory-plan → factory-execute → factory-review → factory-fix → factory-ship, plus standalone test-review, test-write, system-review, and architecture-review. Two human gates: approve the plan; review and merge.",
-  "version": "0.2.0"
+  "version": "0.3.0"
 }

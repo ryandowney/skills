@@ -64,6 +64,11 @@ findings before §3 — consolidation happens there, in this orchestrator, never
 - Merge all three result sets; **dedupe** findings landing on the same `file:line` / same defect.
   The same missing gate legitimately shows up as a correctness bug *and* an untested behaviour —
   report it once, at the higher severity, mentioning both angles.
+- **Honour the dispositions ledger** when the caller supplies one (`/factory-fix` maintains it
+  across rounds): a finding matching a ledgered disposition is reported under that disposition —
+  `fixed` expects the fix present, `dropped (pre-existing)` stays dropped, `disputed` stays
+  disputed — unless this round brings concrete new evidence the disposition didn't have. The
+  ledger never reaches the reviewers themselves; it applies here, at consolidation.
 - **Drop pre-existing items.** Not regressions, not this diff's problem, and "fixing" them widens
   the diff and muddies the change. Note them separately if they matter.
 - **Mass-Inconclusive DB tests mean Docker is down.** That is not a pass and not a finding — it is a
