@@ -1,6 +1,6 @@
 ---
 name: qa
-description: Exploratory QA agent for a template-derived repo. Boots the full stack locally, sweeps every screen with a deterministic crawler (console errors, failed requests, screenshots), then interactively investigates what the sweep flags, probes the three async states (loading/empty/error), and walks the repo's declared workflows — producing a bug report with severities, repro steps, and evidence. Finds bugs; does not fix them. Invoke as /qa [workflow name | route | "sweep-only"].
+description: Exploratory QA agent for a template-derived repo. Boots the full stack locally, sweeps every screen with a deterministic crawler (console errors, failed requests, screenshots), then interactively investigates what the sweep flags, probes the three async states (loading/empty/error), and walks the repo's declared workflows — producing a bug report with severities, repro steps, and evidence. Finds bugs; does not fix them. Invoke as /qa [branch-or-ref | workflow name | route | "sweep-only"]. Given a branch, it QAs that branch in an isolated worktree and focuses judgment on the surfaces the diff actually touched.
 ---
 
 # qa — explore the running app and find bugs
@@ -13,10 +13,30 @@ never fixes (hand confirmed bugs to `/factory` or fix directly, outside this ski
 what the sweep flags, on the three-state probes, and on declared workflows. Do not hand-visit
 healthy pages the crawler already cleared.
 
-`REPO=$(git rev-parse --show-toplevel)`. `$ARGUMENTS` may name one workflow or route to focus on,
-or `sweep-only` for phase 2 alone.
+`REPO=$(git rev-parse --show-toplevel)`. `$ARGUMENTS` may name a branch/ref to QA, one workflow or
+route to focus on, or `sweep-only` for phase 2 alone.
 
 ---
+
+## 0. Scope — branch and diff focus
+
+When `$ARGUMENTS` names a git ref (a branch, `origin/x`, a PR head):
+
+1. **Never disturb the user's checkout.** Put the ref in its own worktree —
+   `git worktree add <scratch>/qa-<slug> <ref>` — and treat that directory as `$REPO` for
+   everything below. Only one stack can own the ports: if a stack from another checkout is
+   running, say so and ask before stopping it. Remove the worktree when done.
+2. **Let the diff aim the judgment.** Compute the diff vs the merge-base with `origin/main`
+   (the same scoping `/flow` uses — run `/flow` if its citations would help). Map it to surfaces:
+   changed web routes/components directly; changed handlers/engines/accessors upward through
+   their request types and `apps/web/src/lib/api.ts` to the screens that call them.
+3. **Spend accordingly.** The full sweep still runs — it is free. Interactive triage, the
+   three-state probes, and workflow walks go to the affected surfaces first and deepest;
+   surfaces the diff does not touch get judgment only if the sweep flags them. In the report,
+   mark each finding **in-scope** (owned by this branch's diff) or **pre-existing** (reproduce
+   on the base branch when cheap to check) — the same discipline `/factory-review` applies.
+
+No ref argument means: QA whatever is checked out, full breadth.
 
 ## 1. Boot the stack (or reuse it)
 
