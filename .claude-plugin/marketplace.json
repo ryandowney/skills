@@ -13,6 +13,11 @@
       "name": "factory",
       "source": "./plugins/factory",
       "description": "Spec \u2192 plan \u2192 build \u2192 review \u2192 fix \u2192 PR pipeline (10 skills): conductor, stage skills, and standalone reviews."
+    },
+    {
+      "name": "qa",
+      "source": "./plugins/qa",
+      "description": "/qa \u2014 exploratory QA: boot, crawl, probe async states, walk workflows, report bugs with evidence."
     }
   ],
   "description": "Claude Code skills for spec-to-PR feature work in IDesign-layered .NET + SvelteKit repos."
