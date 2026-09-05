@@ -22,6 +22,12 @@ export const meta = {
 //                  override here if the project's CLAUDE.md defines one)
 //   baseline:      description of the current green baseline (suite count / known-failing tests)
 //   maxFixRounds:  number (default 3)
+//   houseRulesHint: string — REPLACES the built-in house-rules paragraph. The built-in one describes
+//                  the template repo (DbUp scripts, shadcn-svelte, apps/web, {Entity}{Op} naming);
+//                  a repo with different conventions MUST pass its own or implementers get told to
+//                  do the wrong thing.
+//   schemaInstruction: string — REPLACES the built-in "exactly one DbUp script" instruction given to
+//                  the backend implementer. Pass e.g. "This change needs NO migration" when true.
 // }
 // args can arrive JSON-stringified depending on the caller — normalize defensively.
 const A = typeof args === 'string' ? JSON.parse(args) : (args || {})
@@ -43,7 +49,7 @@ const BASELINE = A.baseline ||
 const BUILD_CMD = `${DOTNET} build ${SLN}`
 const TEST_CMD = `${DOTNET} test ${SLN}`
 
-const HOUSE_RULES_HINT = `Follow every rule in ${repoDir}/CLAUDE.md (it is the authority; read it before writing code) ` +
+const HOUSE_RULES_HINT = A.houseRulesHint || `Follow every rule in ${repoDir}/CLAUDE.md (it is the authority; read it before writing code) ` +
   `and the repo's living spec if it has one (e.g. docs/functional-spec.md). ` +
   `Layering: Clients call ONE Manager; Managers→Engines/Accessors; Engines→Accessors; Accessors→Utilities only. ` +
   `ServiceProxy for dependencies (handlers are Activator-created — no constructor DI). ` +
@@ -130,7 +136,7 @@ async function implementArea(area, tasks, extra) {
   const taskList = tasks.map((t, i) => `${i + 1}. ${t.title} — ${t.detail}${t.files ? ' [files: ' + t.files.join(', ') + ']' : ''}`).join('\n')
   return agent(
     `You are the ${area} implementer. Repo: ${repoDir} (already on the feature branch). ` +
-    `Stay strictly within your area (${area === 'backend' ? 'src/ and docs/' : 'apps/web/'}) — another agent owns the other area. ` +
+    `Stay strictly within your area (${area === 'backend' ? 'src/ and docs/' : webDir}) — another agent owns the other area. ` +
     `Implement ALL of the following tasks IN ORDER, as production code matching the codebase's existing patterns. ` +
     `The approved plan at ${planPath} is the statement of intent — consult it whenever a task is ambiguous, and ` +
     `write each handler's CONTRACT block into the code as part of implementing that handler. ` +
@@ -141,9 +147,10 @@ async function implementArea(area, tasks, extra) {
 
 const impl = await parallel([
   () => implementArea('backend', plan.backendTasks,
+    (A.schemaInstruction ||
     `Put ALL SQL schema changes into EXACTLY ONE new DbUp script (next sequential number in the DbUp project's ` +
     `Scripts/ folder under ${repoDir}/src) and make sure it is registered the way the existing scripts are, including ` +
-    `for the test host. After implementing, run \`${BUILD_CMD}\` from ${repoDir} and fix any compile errors before ` +
+    `for the test host.`) + ` After implementing, run \`${BUILD_CMD}\` from ${repoDir} and fix any compile errors before ` +
     `returning. Write the plan's test cases in the repo's test project (${repoDir}/src/**/*.Tests) using its existing ` +
     `base classes, real-database tiers and FK-honest seeds.`),
   () => implementArea('web', plan.webTasks,
