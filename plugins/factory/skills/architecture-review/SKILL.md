@@ -1,6 +1,6 @@
 ---
 name: architecture-review
-description: Review a diff against the repo's house architecture rules — the 14 numbered rules in CLAUDE.md, layer call directions, ServiceProxy, handler/request name mirroring, validation-in-engine, one-migration-per-change, token-single-source, fail-closed access. Complements a correctness review (which finds bugs); this finds code that is bug-free and still wrong here. Report-only. Use before opening a PR, or standalone on any branch.
+description: Review a diff against the repo's house architecture rules — the 14 numbered rules in AGENTS.md/CLAUDE.md, layer call directions, ServiceProxy, handler/request name mirroring, validation-in-engine, one-migration-per-change, token-single-source, fail-closed access. Complements a correctness review (which finds bugs); this finds code that is bug-free and still wrong here. Report-only. Use before opening a PR, or standalone on any branch.
 ---
 
 # architecture-review — does this follow the house rules?
@@ -10,7 +10,7 @@ breaks a rule this repo enforces. Those are different failure modes and one revi
 both: a hand-rolled button renders perfectly, a Manager calling a Manager returns the right answer,
 and both are review violations here.
 
-`CLAUDE.md` is the contract. Where this skill and `CLAUDE.md` disagree, **`CLAUDE.md` wins** — read
+`AGENTS.md`/`CLAUDE.md` is the contract. Where this skill and `AGENTS.md`/`CLAUDE.md` disagree, **`AGENTS.md`/`CLAUDE.md` wins** — read
 it at the start of every run rather than trusting this summary, which can drift.
 
 Four of the rules are already enforced by tests: `LayerRuleTests`, `HandlerResolutionTests`,

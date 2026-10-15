@@ -25,7 +25,7 @@ something needs a decision, not another attempt.
    - **Decide the fixes yourself.** Hand agents exact resolutions; do not delegate design.
    - **Only fix what this diff owns.** A finding that turns out to be pre-existing gets dropped, not
      fixed — fixing it widens the diff and muddies the change.
-   - **Do not fix one violation by introducing another.** Every fix still obeys `CLAUDE.md` and
+   - **Do not fix one violation by introducing another.** Every fix still obeys `AGENTS.md`/`CLAUDE.md` and
      `/architecture-review`.
 
    **Test findings are fixed by writing tests, never by weakening them.** A survived mutation means

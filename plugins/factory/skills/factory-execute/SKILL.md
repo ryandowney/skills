@@ -43,7 +43,7 @@ component. Not a whole layer, and not a whole feature.
 ## Steps
 
 1. **Resolve the environment.** `SLN=$(ls "$repoDir"/src/*.sln | head -1)`. Use plain `dotnet` unless
-   `CLAUDE.md` defines a machine-specific override, in which case use it verbatim and pass it as
+   `AGENTS.md`/`CLAUDE.md` defines a machine-specific override, in which case use it verbatim and pass it as
    `dotnetCmd`. **Docker must be running** or DB-backed tests come back Inconclusive — treat a
    mass-Inconclusive run as NOT green.
 

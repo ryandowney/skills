@@ -90,11 +90,11 @@ buying.
 
 ## Notes
 
-- **Check this repo's push conventions** before stage 6 — `CLAUDE.md` and stored memory are the
+- **Check this repo's push conventions** before stage 6 — `AGENTS.md`/`CLAUDE.md` and stored memory are the
   source of truth, and they may say push straight to `main` with no PR at all.
 - If a stage stalls or a subagent cannot finish, **stop and report** rather than looping blindly.
 - Local run/debug: API `dotnet run --project src/1.Clients/*.Client.WebApi`; frontend
-  `cd apps/web && npm run dev`. Ports and dev-auth settings are in `CLAUDE.md`.
+  `cd apps/web && npm run dev`. Ports and dev-auth settings are in `AGENTS.md`/`CLAUDE.md`.
 - Keep the living design docs current — that is part of the feature, and `/system-review` §2.2 exists
   because this is the step that gets skipped.
 

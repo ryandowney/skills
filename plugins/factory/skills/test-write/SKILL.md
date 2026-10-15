@@ -21,7 +21,7 @@ base class, the seed helpers. Never to decide *what to assert*.
 
 ## 1. Get the contract
 
-Every Manager and Validation handler carries one (`CLAUDE.md` → Handler contracts): `MUST`, `EDGE`,
+Every Manager and Validation handler carries one (`AGENTS.md`/`CLAUDE.md` → Handler contracts): `MUST`, `EDGE`,
 `ORDER` and `NEVER` lines stating what the handler was supposed to do.
 
 **No contract? Write it first, and do not derive it from the handler body.** Ground it in

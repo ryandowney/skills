@@ -19,7 +19,7 @@ export const meta = {
 //                  the caller should pass the resolved path)
 //   webDir:        absolute path to the frontend    (default: <repoDir>/apps/web)
 //   dotnetCmd:     how to invoke dotnet             (default: 'dotnet'; pass a machine-specific
-//                  override here if the project's CLAUDE.md defines one)
+//                  override here if the project's AGENTS.md/CLAUDE.md defines one)
 //   baseline:      description of the current green baseline (suite count / known-failing tests)
 //   maxFixRounds:  number (default 3)
 //   houseRulesHint: string — REPLACES the built-in house-rules paragraph. The built-in one describes
@@ -49,7 +49,7 @@ const BASELINE = A.baseline ||
 const BUILD_CMD = `${DOTNET} build ${SLN}`
 const TEST_CMD = `${DOTNET} test ${SLN}`
 
-const HOUSE_RULES_HINT = A.houseRulesHint || `Follow every rule in ${repoDir}/CLAUDE.md (it is the authority; read it before writing code) ` +
+const HOUSE_RULES_HINT = A.houseRulesHint || `Follow every rule in ${repoDir}/AGENTS.md (or ${repoDir}/CLAUDE.md if the repo uses that instead; it is the authority; read it before writing code) ` +
   `and the repo's living spec if it has one (e.g. docs/functional-spec.md). ` +
   `Layering: Clients call ONE Manager; Managers→Engines/Accessors; Engines→Accessors; Accessors→Utilities only. ` +
   `ServiceProxy for dependencies (handlers are Activator-created — no constructor DI). ` +
@@ -58,7 +58,7 @@ const HOUSE_RULES_HINT = A.houseRulesHint || `Follow every rule in ${repoDir}/CL
   `Validation logic lives in the validation engine ({Name}ValidationHandler); managers keep thin Validate delegates — ` +
   `and permission/validation tests must go through the same entry point production uses (a test that calls Handle() ` +
   `while skipping Validate() proves nothing about the gate). ` +
-  `Auth gates and fail-closed access resolution as defined in CLAUDE.md. ` +
+  `Auth gates and fail-closed access resolution as defined in AGENTS.md/CLAUDE.md. ` +
   `Exactly ONE new DbUp script per feature (next sequential NNN_Description.sql in the DbUp project's Scripts/ folder — ` +
   `read the folder to get the number; never edit a shipped script) and it MUST be registered wherever the test host ` +
   `applies schema, or the suite runs against stale schema. ` +

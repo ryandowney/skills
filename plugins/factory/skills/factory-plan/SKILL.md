@@ -26,7 +26,7 @@ green suite and a clean review to prove it.
 
 3. **Spawn the planner** at high effort:
    `Agent(description:"Plan <feature>", subagent_type:"general-purpose")`.
-   It must read `CLAUDE.md` and the relevant `docs/`, grep the codebase to ground every claim, and
+   It must read `AGENTS.md`/`CLAUDE.md` and the relevant `docs/`, grep the codebase to ground every claim, and
    **write the plan to the plan path**. Required sections:
 
    - **Requirements** — functional and non-functional; explicit in-scope / out-of-scope; every open
@@ -46,7 +46,7 @@ green suite and a clean review to prove it.
      the test host never runs is a green suite proving nothing.
 
    - **HANDLER CONTRACTS — one per new Manager and Validation handler.** The `MUST` / `EDGE` /
-     `ORDER` / `NEVER` lines that will live in the code (`CLAUDE.md` → Handler contracts). These are
+     `ORDER` / `NEVER` lines that will live in the code (`AGENTS.md`/`CLAUDE.md` → Handler contracts). These are
      written **from the spec and the design docs**, never from an implementation that does not exist
      yet — which is exactly why writing them here, before any code, is what keeps the tests
      independent. Cover the happy path, every refusal, the edges with defined answers, any ordering
@@ -59,7 +59,7 @@ green suite and a clean review to prove it.
      invent them.** Seeds must be FK-honest. Frontend has no unit tests: the gate is `npm run check`
      plus `npm run build`, with Playwright for critical journeys.
 
-   - **House-rule checkpoints** — where `CLAUDE.md`'s rules bite for this change: layer call
+   - **House-rule checkpoints** — where `AGENTS.md`/`CLAUDE.md`'s rules bite for this change: layer call
      directions, ServiceProxy, handler/request name mirroring, validation-in-engine, auth-gate
      placement, fail-closed enforcement on any new agent- or token-facing surface.
 

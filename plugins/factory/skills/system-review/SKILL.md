@@ -76,7 +76,7 @@ For each of `docs/data-model.md`, `roadmap.md`, `screens.md`, `component-registr
 `docs/component-registry.md` claims to track built-vs-unbuilt: **verify a sample rather than trusting
 it.** A registry that has drifted is worse than none, because it is believed.
 
-Note anything `CLAUDE.md` marks as untrustworthy (`docs/functional-spec.md` is template boilerplate)
+Note anything `AGENTS.md`/`CLAUDE.md` marks as untrustworthy (`docs/functional-spec.md` is template boilerplate)
 and do not review against it.
 
 ### 2.3 Test-suite audit — what would this suite fail to catch?
@@ -92,7 +92,7 @@ Not "is coverage high". The question is what could break in production while the
 - **Mutation sample.** Take the highest-consequence behaviours — auth, tenancy, money, data loss —
   and mutate each. Report the survival rate honestly, and **name what you did not mutate.**
 - **Structural gaps.** Layers, endpoints or components with no tests at all, ranked by consequence.
-- **Suite health.** Duration (a slow suite stops being run, and `CLAUDE.md` treats that as a
+- **Suite health.** Duration (a slow suite stops being run, and `AGENTS.md`/`CLAUDE.md` treats that as a
   feature), flakiness, FK-honest seeds, anything `[Ignore]`d and why.
 - **Frontend.** Which routes have Playwright coverage, and whether **empty / loading / error** states
   are exercised anywhere — the defect class a passing build cannot see.
@@ -117,7 +117,7 @@ HIGH       9 of 14 manager handlers have no CONTRACT block; their tests assert i
 HIGH       docs/component-registry.md lists 6 blocks as built; 2 do not exist
 MEDIUM     two spellings of tenant scoping in accessors; the older one misses archived rows
 LOW        suite duration up 40% since Aug 12 — still under a minute
-ACCEPTED   functional-spec.md is boilerplate; known, and CLAUDE.md says so
+ACCEPTED   functional-spec.md is boilerplate; known, and AGENTS.md/CLAUDE.md says so
 ```
 
 ---

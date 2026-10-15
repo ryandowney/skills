@@ -14,7 +14,7 @@ subtly wrong — and it survives mutation testing perfectly, because it is faith
 behaviour nobody ever asked for. **Mutation proves a test is real. It does not prove the test is
 right.** Both questions have to be asked, and only one of them can be answered by reading tests.
 
-So the independent source of truth is the handler's **`CONTRACT` block** (`CLAUDE.md` → Handler
+So the independent source of truth is the handler's **`CONTRACT` block** (`AGENTS.md`/`CLAUDE.md` → Handler
 contracts): the `MUST` / `EDGE` / `ORDER` / `NEVER` lines that say what the handler was *supposed*
 to do. Everything below compares tests to that, not to the code.
 
@@ -83,7 +83,7 @@ catches *the implementer did more than was asked* — invisible to any test-only
 
 ### 2.4 Test → wrong entry point  (**highest yield, seconds to run**)
 
-`CLAUDE.md` rule 7: security tests exercise `Validate()`, not just `Handle()`. A permission test that
+`AGENTS.md`/`CLAUDE.md` rule 7: security tests exercise `Validate()`, not just `Handle()`. A permission test that
 calls the handler directly bypasses the gate it claims to test and passes forever.
 
 The manager runs `Validate` then `Handle`. A test calling only `Handle` has tested the happy path of

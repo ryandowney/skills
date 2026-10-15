@@ -13,7 +13,7 @@ Takes a green, review-clean branch to merge-ready. **Never merges** — that sta
 - The feature branch name
 
 **Check this repo's push conventions before doing anything.** They differ per project and per phase,
-and getting it wrong is the one mistake here that is annoying to undo. `CLAUDE.md` and any stored
+and getting it wrong is the one mistake here that is annoying to undo. `AGENTS.md`/`CLAUDE.md` and any stored
 memory are the source of truth — if this project pushes straight to `main` with no PRs, do that
 instead of opening one, and say so rather than silently following this skill's default.
 

@@ -11,7 +11,7 @@ the others:
 | Review | Catches | Misses without the others |
 |---|---|---|
 | **Correctness** | Bugs, logic, security, edge cases | Code that is correct and breaks every house rule |
-| **Architecture** | Layering, conventions, `CLAUDE.md` rules | Code that follows every rule and is wrong |
+| **Architecture** | Layering, conventions, `AGENTS.md`/`CLAUDE.md` rules | Code that follows every rule and is wrong |
 | **Test** | Tests that cannot fail, or test the wrong intent | *Everything*, once the suite is green and trusted |
 
 The third is the one usually skipped, and it is the one that decides whether the other two mattered.
@@ -50,7 +50,7 @@ findings before §3 — consolidation happens there, in this orchestrator, never
    letting it wander, and hand it the plan path — correctness against stated intent, not just
    against plausibility.
 
-2. **Architecture.** `/architecture-review` — the 14 numbered `CLAUDE.md` rules plus the unnumbered
+2. **Architecture.** `/architecture-review` — the 14 numbered `AGENTS.md`/`CLAUDE.md` rules plus the unnumbered
    ones. Skip re-deriving what `LayerRuleTests`, `HandlerResolutionTests`, `MigrationRegistryTests`
    and `ValidationConventionTests` already prove when the suite is green.
 

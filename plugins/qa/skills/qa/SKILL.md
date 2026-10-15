@@ -41,7 +41,7 @@ No ref argument means: QA whatever is checked out, full breadth.
 ## 1. Boot the stack (or reuse it)
 
 Check first — `curl -s localhost:5000/health` and the web port — a running stack is reused, never
-restarted. Otherwise, per the repo's CLAUDE.md commands (authoritative over these defaults):
+restarted. Otherwise, per the repo's AGENTS.md/CLAUDE.md commands (authoritative over these defaults):
 
 ```
 docker compose up -d

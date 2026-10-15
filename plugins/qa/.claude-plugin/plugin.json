@@ -1,5 +1,5 @@
 {
   "name": "qa",
   "description": "Exploratory QA agent: boots the stack locally, crawls every screen deterministically, investigates flags interactively, probes loading/empty/error states, walks declared workflows, and reports bugs with repro steps and evidence.",
-  "version": "0.2.0"
+  "version": "0.2.1"
 }
