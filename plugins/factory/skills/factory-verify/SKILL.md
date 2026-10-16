@@ -86,6 +86,9 @@ Rules the clicker follows:
   `stop_recording` → `export` with `download: true` and `filename: "NN-<flow>.gif"`. A GIF holds about
   50 frames, so a flow that needs more is two flows. Exports land in the browser's downloads folder —
   move them into `gifs/` afterwards.
+  If the shell cannot read `~/Downloads` ("Operation not permitted" — macOS privacy controls), have
+  Finder copy them: `osascript -e 'tell application "Finder" to duplicate {POSIX file "<file>"} to
+  POSIX file "<gifs dir>" with replacing'`.
 - **The tab must be visible.** Chrome pauses animations and timers in a background tab
   (`document.visibilityState === "hidden"`), which makes motion look broken and waits hang. Check it
   before judging anything that moves.
