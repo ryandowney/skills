@@ -35,7 +35,16 @@ Phase 0 contracts (1 commit, strong model)
         build (build model) → tests from contract (build model, other agent)
           → adversarial review + targeted mutation (strong) → fix (build) [→ re-review if a blocker was fixed]
    └─ integrate: merge lanes → build → FULL suites once → real-stack smoke (strong)
+   └─ teardown: remove every lane worktree + branch that is merged and clean; keep and report the rest
 ```
+
+**Worktrees are scaffolding.** Each lane works in its own worktree on its own branch; the integration
+agent merges those branches into the feature branch; then a separate teardown step removes each lane's
+worktree (with the repo's `teardownCmd`, so a helper can release a port slot or database) and deletes its
+branch with `git branch -d`. It never forces: a lane with uncommitted changes, or with commits that did
+not reach the feature branch, is kept and listed in `teardown.kept`, because that is work someone needs to
+look at. Only the feature worktree survives the run — it is where review fixes, the PR and verification
+happen, and it goes when the PR merges.
 
 ---
 
@@ -58,6 +67,7 @@ Phase 0 contracts (1 commit, strong model)
      planPath, repoDir, featureBranch, baseline, knownFailures,
      buildCmds: ["<build>", "<frontend type-check>"], testCmds: ["<backend suites>", "<frontend unit>", "<e2e>"],
      worktreeCmd: "<the repo's worktree helper, with {path} {branch} {start}>",
+     teardownCmd: "<how to remove one, with {path} {name} — default git worktree remove {path}>",
      laneSetupNote: "<per-worktree setup, e.g. copy app/.env>",
      gitTrailer: "<the commit trailer lines this session requires>",
      repoRules: "<repo-specific hard rules>" } })
@@ -81,6 +91,14 @@ Phase 0 contracts (1 commit, strong model)
    | `contracts` | Phase 0 could not make it build, or made no commit | read its issues; usually a plan gap |
    | `lanes-setup` | worktrees could not be created | read its summary; usually the worktree helper or a leftover worktree |
    | `lanes` | a lane is blocked — see each lane's `summary` and `notes` | judge it. A summary saying **a review left a mutation in the tree** means sabotaged code may be in that worktree: **inspect `git diff` there before anything else**. Otherwise fix by hand on the lane branch, commit, and resume with `acceptedLanes: ["<key>"]` added — a blocked result is cached, so a plain resume just stops again |
+
+   A `lanes` stop keeps every lane worktree on purpose — they hold the work to judge. Teardown runs when
+   the resumed run integrates. If you abandon the run instead, clean up by the same rule: for each
+   `<feature worktree>-lane-*`, remove it only when `git status --porcelain` there is empty and its branch
+   is merged; otherwise ask the user.
+
+   **After every run, read `teardown`**: `kept` lists what is still on disk and why; `worktreeList` should
+   show no `-lane-` entries otherwise. Record both in the run manifest.
 
    Every lane returns `notes`: contract ambiguities the builder resolved and findings the fixer
    disputed. Write them into the run manifest's dispositions ledger so `/factory-fix` honours them

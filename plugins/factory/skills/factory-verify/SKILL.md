@@ -54,6 +54,8 @@ only do that when the repo says so; GIFs bloat history forever).
   README.md     the report: matrix table with verdicts, each row linking its GIF / screenshot
   matrix.md     the numbered paths (step 1)
   gifs/         NN-<flow>.gif, one per flow
+  flows/        the Playwright script per flow (local; rerunnable)
+  video/ frames/  raw recordings the GIFs are made from (local)
   screens/      NN-<state>.png for single-state checks
   data.md       what was seeded, every DB cross-check query and its result, what was cleaned up
 ```
@@ -71,16 +73,53 @@ only do that when the repo says so; GIFs bloat history forever).
 
 ## 4. Click through it
 
-Browser: claude-in-chrome. Load its tools in one `ToolSearch` call (tabs_context_mcp, tabs_create_mcp,
-navigate, computer, find, read_page, javascript_tool, browser_batch, gif_creator, resize_window,
-read_console_messages, tabs_close_mcp). Create your own tab; batch predictable steps with
-`browser_batch`.
+**Recorder: Playwright, when the repo has it** (its `node_modules` has `playwright` or `@playwright/test`).
+It does what the Chrome extension cannot: a true 390 px width, reduced motion switched on, a page that is
+never a paused background tab, and a video of every flow. Use the Chrome extension (below) only when the
+repo has no Playwright, when Playwright cannot sign in, or for a quick exploratory look.
 
 **Delegate the click-through to one subagent** with the matrix, the environment notes and the rules
 below, so thousands of lines of page output stay out of the orchestrator's context. It returns the
 verdict table; it changes no code.
 
-Rules the clicker follows:
+**Playwright, one script per flow**, written in the evidence dir's `flows/` (never the repo), using the
+repo's own copy so nothing is installed:
+
+```js
+import { createRequire } from 'node:module'
+const { chromium } = createRequire('<app dir>/package.json')('playwright')   // or '@playwright/test'
+const ctx = await (await chromium.launch()).newContext({
+  baseURL, viewport: { width, height }, reducedMotion,           // e.g. 1280 / 390, 'reduce' / 'no-preference'
+  storageState,                                                  // the repo's e2e sign-in state, if it has one
+  recordVideo: { dir: '<evidence>/video/NN-flow', size: { width, height } } })
+const page = await ctx.newPage()
+let n = 0; const shot = () => page.screenshot({ path: `<evidence>/frames/NN-flow/${String(++n).padStart(2, '0')}.png` })
+// goto → shot() → each step → shot() → assert with page.evaluate / expect-style checks → ctx.close()
+```
+
+- **Sign in** the way the repo's e2e suite does (its global setup, saved storage state, or dev-auth
+  bypass). Never type a real person's password. No way in → fall back to the extension, which uses
+  the signed-in browser.
+- **GIF per flow**: with ffmpeg installed, convert the video
+  (`ffmpeg -i in.webm -vf "fps=10,scale=960:-1:flags=lanczos,split[a][b];[a]palettegen[p];[b][p]paletteuse" NN-flow.gif`);
+  otherwise stitch the step screenshots: `python3 ${CLAUDE_PLUGIN_ROOT}/skills/factory-verify/frames-to-gif.py <frames dir> gifs/NN-flow.gif`
+  (needs Pillow). Playwright's bundled ffmpeg can only *write* video, not convert it. Keep the `.webm`
+  videos locally next to the GIFs; they are not published.
+- **Run each flow at every width and motion setting the matrix asks for** — at least desktop, and 390 px
+  with `reducedMotion: 'reduce'` when the matrix has narrow or motion lines. Those lines are then PASS
+  or FAIL, not SKIPPED.
+- **Prove motion with numbers**: sample the element in `page.evaluate` every animation frame, and
+  assert it ends up exactly once, in the right place, with nothing still animating
+  (`document.getAnimations().length === 0`).
+- **Error states**: `page.route('**/the-url', r => r.abort())` (or `fulfill` with a 500) for one call,
+  then `unroute`. Never stop the API or a container to get an error.
+- **Console errors**: collect `page.on('console')` and `page.on('pageerror')` per flow; any error fails the line.
+- **Overflow**: at each width, `document.documentElement.scrollWidth > innerWidth` is a FAIL (say if it
+  is pre-existing on the base branch).
+
+**Chrome extension (fallback)**: claude-in-chrome. Load its tools in one `ToolSearch` call (tabs_context_mcp,
+tabs_create_mcp, navigate, computer, find, read_page, javascript_tool, browser_batch, gif_creator,
+resize_window, read_console_messages, tabs_close_mcp). Create your own tab; batch predictable steps.
 
 - **One GIF per flow.** `gif_creator start_recording` → screenshot → the steps → screenshot →
   `stop_recording` → `export` with `download: true` and `filename: "NN-<flow>.gif"`. A GIF holds about
@@ -90,19 +129,17 @@ Rules the clicker follows:
   Finder copy them: `osascript -e 'tell application "Finder" to duplicate {POSIX file "<file>"} to
   POSIX file "<gifs dir>" with replacing'`.
 - **The tab must be visible.** Chrome pauses animations and timers in a background tab
-  (`document.visibilityState === "hidden"`), which makes motion look broken and waits hang. Check it
-  before judging anything that moves.
-- **Prove motion with numbers, not frames.** Screenshots are too slow to catch a 300 ms transition:
-  trigger the action from `javascript_tool` and sample element positions every animation frame, then
-  assert the element ends up exactly once, in the right place, with no animation still running.
+  (`document.visibilityState === "hidden"`), which makes motion look broken and waits hang.
+- **Motion**: trigger the action from `javascript_tool` and sample positions every animation frame.
 - **Never trigger native `alert` / `confirm`** — they freeze the extension.
-- **Error states without breaking anything shared**: override `window.fetch` in the page to fail one
-  URL, then restore it. Never stop the API or a container to get an error.
-- **Width**: `resize_window` to the narrowest the browser allows (often 500 px on macOS, not 390) and
-  say which width was tested.
-- **What automation cannot do** (OS reduced-motion, push notifications, real email) is verified from
-  the code and marked **SKIPPED — code-verified**, with the file and line. Never mark it PASS.
-- Read console errors on every page (`read_console_messages`, errors only).
+- **Error states**: override `window.fetch` in the page to fail one URL, then restore it.
+- **Width**: `resize_window` to the narrowest the browser allows (often 500 px on macOS) and say which
+  width was tested; 390 px and reduced motion need Playwright.
+
+Both recorders:
+
+- **What neither can do** (OS-level settings beyond reduced motion, push notifications, real email) is
+  verified from the code and marked **SKIPPED — code-verified**, with the file and line. Never PASS.
 - Every write the UI claims is checked in the database, and the value goes in `data.md`.
 
 Verdicts: **PASS**, **FAIL** (repro, expected, actual, likely file), **PARTIAL** (what part is
@@ -128,7 +165,7 @@ Things outside the work (pre-existing bugs, unrelated screens) are reported, not
 ## 6. Clean up
 
 Delete every `QA-<slug>-` row and revert every direct DB edit (record both in `data.md`). Close the
-tabs you opened. Leave the stack as you found it.
+tabs and browsers you opened. Leave the stack as you found it.
 
 ## 7. Publish the evidence
 

@@ -82,9 +82,13 @@ State the route and the one-line reason in the run manifest. Between `single-uni
    goes to the per-branch evidence folder and is posted to the PR and the issue, as the repo's rules
    allow.
 
+   **Before Gate 2, leave nothing behind**: `git worktree list` shows no lane worktrees (any the engine
+   kept are named in the run manifest with the reason, and the user hears about them), no temporary
+   evidence worktree, no browsers or dev servers the factory started, and every `QA-` row is gone.
+
    **GATE 2 — handoff.** The PR URL, what shipped, test counts against the baseline, review verdicts,
    the verify matrix with its counts (PASS / FAIL / PARTIAL / SKIPPED), what is not verified and why,
-   and where the evidence is. The factory does **not** merge.
+   and where the evidence is, and any worktree still on disk. The factory does **not** merge.
 
 ## Route `bugfix`
 

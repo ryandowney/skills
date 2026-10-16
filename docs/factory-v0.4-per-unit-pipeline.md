@@ -87,3 +87,15 @@ different topology from both this doc and v0.3, and it was faster *and* caught m
 The per-unit granularity below stays unbuilt: lanes are the unit, and the cost concern (2–3× tokens
 for per-unit agents) still holds. The two ideas it shared with v0.4.0 — disjointness checked in code,
 failure kept local to its lane — shipped.
+
+## 2026-10-16 — v0.5.0: lanes clean up after themselves; Playwright records the click-through
+
+- **Teardown is its own step**, not a sentence in the integration prompt. After integration (or a failed lane
+  setup) a cheap agent removes each lane worktree with the repo's `teardownCmd` and deletes its branch with
+  `git branch -d`. It never forces: a dirty lane, or one whose commits did not reach the feature branch, is kept
+  and reported in `teardown.kept`. A `lanes` stop keeps everything on purpose; the conductor checks
+  `git worktree list` before Gate 2.
+- **factory-verify records with Playwright when the repo has it**: true 390 px width, `reducedMotion`, no
+  background-tab pauses, video per flow. GIFs come from ffmpeg when installed, else from step screenshots via
+  `frames-to-gif.py` (Pillow). The Chrome extension stays as the fallback for repos without Playwright or
+  when Playwright cannot sign in.

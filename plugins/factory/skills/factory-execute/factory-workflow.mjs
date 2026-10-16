@@ -10,6 +10,7 @@ export const meta = {
     { title: 'Review', detail: 'adversarial review of code AND tests, with targeted mutation on high-risk lines' },
     { title: 'Fix', detail: 'fix confirmed findings; re-review only when a blocker was fixed' },
     { title: 'Integrate', detail: 'merge lanes, full suites once, real-stack smoke' },
+    { title: 'Teardown', detail: 'remove every lane worktree and branch that is fully merged and clean; keep and report the rest' },
   ],
 }
 
@@ -25,6 +26,8 @@ export const meta = {
 //   worktreeCmd:    how to create a lane worktree, with {path} {name} {branch} {start} placeholders ({name} is
 //                   the last segment of {path}, for helpers that take a name). Default:
 //                   git worktree add {path} -b {branch} {start}. Repos with a helper (port slots, node_modules) pass it.
+//   teardownCmd:    how to remove one lane worktree, same placeholders. Default: git worktree remove {path}. Repos whose
+//                   helper claims something per worktree (a port slot, a database) pass the command that releases it.
 //   laneSetupNote:  extra per-lane setup the repo needs (copy .env, etc.)
 //   houseRules:     one paragraph naming the repo's rule files; default points at AGENTS.md / CLAUDE.md
 //   gitTrailer:     the commit trailer lines this session requires (verbatim)
@@ -50,6 +53,7 @@ const BUILD_CMDS = (A.buildCmds || []).join(' && ') || "the repo's build and typ
 const TEST_CMDS = (A.testCmds || []).join(' ; ') || 'every test suite the repo has (AGENTS.md / CLAUDE.md say how)'
 const KNOWN = (A.knownFailures || []).map(k => `- ${k.test} — ${k.why}`).join('\n')
 const WT_CMD = A.worktreeCmd || 'git worktree add {path} -b {branch} {start}'
+const TD_CMD = A.teardownCmd || 'git worktree remove {path}'
 
 const COMMON = `
 You are one agent in an orchestrated feature build. The APPROVED plan is ${planPath}: read it fully before anything
@@ -168,6 +172,32 @@ log(`Contracts committed: ${contracts.commit}`)
 phase('Lanes setup')
 const wt = l => `${repoDir}-lane-${l.key}`
 const br = l => `${featureBranch}-lane-${l.key}`
+
+// Lane worktrees are scaffolding: once a lane's work is in the feature branch, its worktree and branch go. Nothing is
+// thrown away to get there — a lane whose branch is not fully merged, or whose tree has uncommitted changes, is kept
+// and reported, because that is exactly the work a person needs to look at.
+const TEARDOWN = {
+  type: 'object',
+  required: ['removed', 'kept', 'worktreeList'],
+  properties: {
+    removed: { type: 'array', items: { type: 'string' }, description: 'lane keys whose worktree AND branch are gone' },
+    kept: { type: 'array', items: { type: 'object', required: ['lane', 'reason'],
+      properties: { lane: { type: 'string' }, reason: { type: 'string' } } } },
+    worktreeList: { type: 'string', description: '`git worktree list` output after cleanup, verbatim' },
+  },
+}
+const teardown = (why) => agent(`Remove the lane worktrees of a finished build (${why}). Work from ${repoDir}.
+For each lane below, in order:
+1. If its path is not a registered worktree (\`git worktree list --porcelain\`) and its branch does not exist, it is
+   already gone: count it as removed.
+2. KEEP it, with the reason, if \`git -C <path> status --porcelain\` prints anything (uncommitted work), or if
+   \`git merge-base --is-ancestor <branch> ${featureBranch}\` fails (commits that never reached the feature branch).
+3. Otherwise remove the worktree with \`${TD_CMD}\` ({name} = the last path segment of {path}; read any helper script
+   it names first), then delete the branch with \`git branch -d <branch>\` (lower-case -d: it refuses an unmerged
+   branch, which is the point). Never --force, never -D, never rm -rf.
+Then \`git worktree prune\` and return \`git worktree list\` verbatim. Touch nothing that is not in this list.
+${D.lanes.map(l => `- ${l.key}: path ${wt(l)}  branch ${br(l)}`).join('\n')}`,
+  { label: 'teardown', phase: 'Teardown', schema: TEARDOWN, ...BUILD, effort: 'low' })
 const setup = await agent(`${COMMON}
 Create one worktree and branch per lane, each starting at ${contracts.commit}. Command template: \`${WT_CMD}\`
 ({name} = the last path segment of {path})
@@ -177,7 +207,11 @@ ${D.lanes.map(l => `- path ${wt(l)}  branch ${br(l)}`).join('\n')}
 ${A.laneSetupNote || ''}
 Confirm each worktree's HEAD is ${contracts.commit}. Start no servers.`,
   { label: 'lane worktrees', phase: 'Lanes setup', schema: STAGE, ...BUILD })
-if (!setup || setup.status !== 'done') return { stopped: { step: 'lanes-setup', setup }, contracts }
+if (!setup || setup.status !== 'done') {
+  // Every lane branch still sits on the contracts commit, so whatever was created is safe to remove.
+  phase('Teardown')
+  return { stopped: { step: 'lanes-setup', setup }, contracts, teardown: await teardown('lane setup failed') }
+}
 
 // ---- Lanes: build → tests → review → fix (→ re-review) -------------------------
 const laneRule = l => `Work ONLY in ${wt(l)} (branch ${br(l)}) — cd there first and stay there. You own: ${l.owns.join(', ')}
@@ -288,10 +322,14 @@ YOUR JOB: integrate, in ${repoDir} on ${featureBranch}.
 4. Real stack: start it the way AGENTS.md / CLAUDE.md says, apply the migration, and run the smoke steps:
    ${D.smoke || 'create, read, update and delete through the real API for each new endpoint, checking every response'}.
    Record what you ran and what came back. Stop only what you started.
-5. Commit fixes. When merged and green, remove the lane worktrees and delete the lane branches.
+5. Commit fixes. Leave the lane worktrees alone — a separate step removes them.
 Lane results: ${JSON.stringify(lanes.map(x => ({ lane: x.lane, summary: x.summary })))}
 Return the final sha, per-suite counts in tests, and anything unresolved in issues.`,
   { label: 'integrate', phase: 'Integrate', schema: STAGE, ...STRONG })
+
+// Every lane is merged (or the merge stopped part way — teardown keeps whatever is not in the feature branch).
+phase('Teardown')
+const cleaned = await teardown(integration && integration.status === 'done' ? 'integrated' : 'integration stopped')
 
 return {
   green: !!integration && integration.status === 'done',
@@ -300,4 +338,5 @@ return {
     findings: ((x.review && x.review.findings) || []).length,
     mutations: (x.review && x.review.mutations) || [] })),
   integration,
+  teardown: cleaned,
 }
