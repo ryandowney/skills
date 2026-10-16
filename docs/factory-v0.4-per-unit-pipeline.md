@@ -68,3 +68,22 @@ If fix rounds stay one-off and cheap, the current shape is the right cost model 
 - A killed run resumed via `resumeFromRunId` re-runs only incomplete units.
 - Token cost per feature reported in the workflow result, so the v0.3 vs v0.4 cost delta is
   measurable, not vibes.
+
+## 2026-10-16 — superseded by v0.4.0 "contracts first, lanes in parallel"
+
+Ryan's call after a full-stack feature build in a work repo (five lanes, about 1h46m and 25
+agents, then stress testing and a 72-path browser QA pass). That run used a
+different topology from both this doc and v0.3, and it was faster *and* caught more:
+
+- **Phase 0 writes every contract as compiling code** (DTOs, interfaces, migration, handler shells
+  with CONTRACT blocks, frontend types, mocks) in one commit. Lanes then build against frozen
+  shapes instead of guessing each other's, which removes the reason for bottom-up serial layers.
+- **Lanes in their own worktrees, owning disjoint paths** (checked in script code), each running
+  build → tests from the contract by a different agent → adversarial review with mutation on
+  high-risk lines only → fix → re-review only after a blocker fix.
+- **Full suites once, at integration**, plus a real-stack smoke; then the whole-diff review.
+- **Verification as the last stage**: every path clicked in a real browser, GIF evidence posted.
+
+The per-unit granularity below stays unbuilt: lanes are the unit, and the cost concern (2–3× tokens
+for per-unit agents) still holds. The two ideas it shared with v0.4.0 — disjointness checked in code,
+failure kept local to its lane — shipped.

@@ -1,85 +1,105 @@
 ---
 name: factory-plan
-description: Produce an exhaustive implementation plan for a feature in an IDesign-layered repo from a spec — requirements, affected surface across every layer, API contract, the single migration, house-rule checkpoints, and a per-handler CONTRACT block plus the test cases each contract line owes. Grounds every claim in the codebase. Use as the factory's first stage, or standalone when you just need a plan.
+description: Produce an exhaustive implementation plan from a spec — requirements, every recorded decision, affected surface across every layer, wire contract, the single migration, house-rule checkpoints, a per-handler CONTRACT block with the test cases each line owes, the Phase 0 contract-file list, a lane map with disjoint file ownership, and the verification matrix the finished work is clicked through against. Grounds every claim in the codebase. Use as the factory's first stage, or standalone when you just need a plan.
 ---
 
 # factory-plan — the plan everything downstream is built from
 
-Turns a spec (`$ARGUMENTS` — literal text or a path to a spec file) into one document an implementer
-can execute without re-deriving anything.
+Turns a spec (`$ARGUMENTS` — literal text or a path) into one document an implementer can execute
+without re-deriving anything.
 
-The plan's most important output is not the file list. It is the **handler contracts**: the statement
-of what each handler is *supposed* to do. Tests are written from those, and reviewed against those.
-Get them wrong and every downstream stage faithfully builds and verifies the wrong feature — with a
-green suite and a clean review to prove it.
+The most important outputs are not the file list:
+
+- **Handler contracts** — what each handler is *supposed* to do. Tests are written from them and
+  reviews are held to them. Wrong contracts produce a correct-looking feature, a green suite and a
+  clean review, all agreeing on the wrong thing.
+- **The lane map** — which agent owns which files. It is what lets the build run in parallel without
+  agents overwriting each other.
+- **The verification matrix** — every path a user can take, written from the spec before any code
+  exists, so the final click-through checks the spec rather than the build.
 
 ---
 
 ## Steps
 
-1. **Plan path.** `<scratchpad>/factory/plan-<slug>.md` (slug from the spec); `/tmp/factory/` if no
-   scratchpad is configured. Plans are scratch — do not commit them.
+1. **Plan path.** Keep plans in the repo's `docs/plans/<slug>-plan.md` when the repo keeps plans
+   (check `AGENTS.md` / `CLAUDE.md`), else `<scratchpad>/factory/plan-<slug>.md`.
 
-2. **Establish the test baseline first.** Run the suite *before* anything changes and record the
-   count and any known failures. Everything after is compared to that; anything newly red is yours.
-   Mass-Inconclusive means Docker is down, not a pass.
+2. **Test baseline first.** Run the suites before anything changes; record counts and known failures.
+   Mass-Inconclusive or mass-skipped DB tests mean Docker is down — not a pass.
 
-3. **Spawn the planner** at high effort:
-   `Agent(description:"Plan <feature>", subagent_type:"general-purpose")`.
-   It must read `AGENTS.md`/`CLAUDE.md` and the relevant `docs/`, grep the codebase to ground every claim, and
-   **write the plan to the plan path**. Required sections:
+3. **Spawn the planner** on the strongest model at high effort (`Agent`, general-purpose). It reads
+   `AGENTS.md` / `CLAUDE.md` and the relevant docs, greps the codebase to ground every claim, and
+   writes the plan with these sections:
 
+   - **Decisions** — at the very top, every decision the user has made (in chat, on a call, in the
+     ticket), dated, each marked as overriding the spec where it does. Later sections must agree with
+     it; this block wins when they don't.
    - **Requirements** — functional and non-functional; explicit in-scope / out-of-scope; every open
-     question resolved, with assumptions stated where the spec is silent.
+     question resolved or flagged for Gate 1. A business rule (a rate, a role, a wording) is never
+     assumed — it is flagged.
+   - **Affected surface, per layer, bottom-up** — exact backend files by layer, then frontend data
+     (types, accessors, API mocks), then routes and components. A thing belongs to the lowest layer it
+     can live in.
+   - **Wire contract** — request/response shapes, byte-for-byte; frontend names match the API's
+     serialization exactly.
+   - **Data / migrations** — exactly one migration for the feature, in the repo's own migration tool
+     and numbering (read the folder; never assume), registered wherever the test host applies schema.
+     Never edit a shipped migration.
+   - **HANDLER CONTRACTS** — one per new handler: `MUST` / `EDGE` / `ORDER` / `NEVER` lines covering
+     the happy path, every refusal, the edges with defined answers, any ordering that is itself a
+     guarantee, and what must never happen. Written from the spec and design docs, before any code.
+   - **Test plan, line by line from the contracts, per lane** — for each line the concrete case(s):
+     positive and negative, which error, which entry point. Anything guarding a permission, money or
+     data loss is tested through the same entry point production uses (if production validates before
+     handling, so does the test). Reuse the test projects' real base classes and seed helpers — name
+     them; do not invent them. Seeds are FK-honest.
+   - **Phase 0 — contracts as code.** The exact list of files one agent writes *before* any lane
+     starts: shared enums, entities and DB config, the migration, every request/response/DTO and
+     interface in every layer, compiling handler **shells** carrying their CONTRACT blocks, frontend
+     types and accessor signatures, API-mock fixtures, component stubs — and every **shared
+     registration file** (DI registration, route tables, barrels, navigation, project/solution files,
+     lockfiles) the feature touches, since no lane may own a file another lane also needs. Mark each
+     file **frozen** (contract) or **shell** (a body a lane fills in), and give every shell the lane
+     that owns its path. After Phase 0 the solution builds and no lane guesses a shape another owns.
+   - **Lane map.** Lanes that can be built in parallel once Phase 0 exists — typically one per layer
+     group (data access; use cases + validation; API; frontend data; frontend UI). For each: a key,
+     the **path prefixes it alone owns** (disjoint — the build engine refuses overlaps), how it mocks
+     the layer below, its test cases, the command that runs just its tests, and its **high-risk
+     lines** (auth, tenancy, money, data loss, dates and time zones) that the reviewer will
+     mutation-test. Lanes run their DB-backed tests at the same time: say how the test projects keep
+     databases isolated (per-test containers, per-lane database names), or serialise those lanes.
+   - **Integration smoke** — the real-stack steps run after the lanes merge (each endpoint through the
+     real API, the migration applied).
+   - **Verification matrix** — numbered user paths with their expected outcomes, each tagged with its
+     source (spec / decision / plan): every flow end to end, every action from every place it is
+     offered, loading / empty / error states, validation, a second user, deep links and back/forward,
+     counts and badges that must agree, narrow width, keyboard, motion. `/factory-verify` clicks
+     through exactly this list at the end. For a bug fix: the reproduction, the fixed behaviour, and
+     the neighbouring paths the fix could disturb.
+   - **House-rule checkpoints** — where the repo's rules bite for this change.
+   - **Docs** — what changes in the living design docs.
+   - **Risks & rollout** — deploy blast radius, migration safety on live data, sequencing.
 
-   - **Affected surface** — exact backend files by layer (Client → Manager handler → Validation
-     handler → Accessor → EF entity + `DatabaseContext`, request/response contracts, DTO mappers,
-     DbUp script) and frontend files (`apps/web/src/lib/api.ts`, routes, stores, components).
+4. **UI triage.** Run `/ui-triage <plan path>`. If `substantive`, run
+   `/ux-design <plan path> --live --design <next to the plan>` and link it from the plan; its
+   acceptance checklist joins the verification matrix. Return the verdict and design path so the
+   conductor can record them and hand them to `/factory-fix`.
 
-   - **API contract** — request/response shapes. Frontend calls in `api.ts` must match controller
-     routes **exactly**; there is no generated contract file, so the controllers are the truth and a
-     typo is a runtime 404 no compiler catches.
+5. **Read the plan yourself.** Check the contracts hardest: a line that restates a function name
+   (`MUST create the task`) is a label, not intent — it yields no test that could fail. Check that lane
+   ownership is disjoint and that every new file belongs to exactly one lane or to Phase 0. Check that
+   the matrix covers every surface in the affected list. Push back before presenting.
 
-   - **Data / migrations** — **exactly ONE** new DbUp script, next sequential number (read the
-     folder, never assume), consolidating every schema change. Never edit a shipped script. Update
-     the EF entity and `DatabaseContext`, **and register the script in the test host** — a migration
-     the test host never runs is a green suite proving nothing.
-
-   - **HANDLER CONTRACTS — one per new Manager and Validation handler.** The `MUST` / `EDGE` /
-     `ORDER` / `NEVER` lines that will live in the code (`AGENTS.md`/`CLAUDE.md` → Handler contracts). These are
-     written **from the spec and the design docs**, never from an implementation that does not exist
-     yet — which is exactly why writing them here, before any code, is what keeps the tests
-     independent. Cover the happy path, every refusal, the edges with defined answers, any ordering
-     that is itself a guarantee, and anything that must never happen.
-
-   - **Test plan, derived line by line from those contracts.** For each contract line, the concrete
-     case(s) it owes: positive and negative, which error code and field, which entry point. Anything
-     guarding a permission, money or data loss goes through `Validate()` (rule 7). Read the existing
-     test project and **reuse its real base classes and seed helpers — discover the names, do not
-     invent them.** Seeds must be FK-honest. Frontend has no unit tests: the gate is `npm run check`
-     plus `npm run build`, with Playwright for critical journeys.
-
-   - **House-rule checkpoints** — where `AGENTS.md`/`CLAUDE.md`'s rules bite for this change: layer call
-     directions, ServiceProxy, handler/request name mirroring, validation-in-engine, auth-gate
-     placement, fail-closed enforcement on any new agent- or token-facing surface.
-
-   - **Docs** — what changes in the living design docs. Not an afterthought; §2.2 of
-     `/system-review` exists because this step gets skipped.
-
-   - **Risks & rollout** — destructive-op safeguards, sequencing, anything irreversible.
-
-4. **Read the plan yourself.** Check the contracts hardest: a contract line that merely restates a
-   function name (`MUST create the credential`) is not intent, it is a label — it yields no test
-   that could fail. Push back before the plan is presented.
-
-5. **Present a tight summary** and return the plan path.
+6. **Present a tight summary** and return the plan path.
 
 ---
 
 ## Output
 
-The plan path, a 5–8 line summary, the migration number chosen, **the handler contracts in full**,
-and any assumption the planner made where the spec was silent.
+The plan path, a 5–8 line summary, the migration chosen, **the handler contracts in full**, the lane
+map, the verification matrix line count (and the lines themselves on request), the UI triage verdict
+and design path, and every assumption made where the spec was silent.
 
-This is **Gate 1**: the caller gets the user's approval before `/factory-execute`. The contracts are
-the part most worth a human's eye — they are cheap to correct now and expensive after tests exist.
+This is **Gate 1**: the caller gets the user's approval before `/factory-execute`. The contracts and
+the matrix are the parts most worth a human's eye — cheap to correct now, expensive after tests exist.

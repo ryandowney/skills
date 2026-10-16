@@ -1,115 +1,128 @@
 ---
 name: factory
-description: Software-factory conductor. Drives one feature from a spec to a merge-ready PR by chaining factory-plan → factory-execute → factory-fix → factory-ship, with two human gates (approve the plan; review and merge). Invoke with a spec — literal text or a path to a spec file. Use for real multi-layer feature work; invoke the individual stage skills to run just one.
+description: Software-factory conductor. Drives a feature or a bug fix from a spec to a merge-ready, browser-verified PR — plan (with UI triage and UX design when there is real UI) → contracts as code → parallel lanes → integration → whole-diff review and fix → optional stress test → PR and CI → full browser click-through with GIF evidence posted to the PR and issue. Two human gates (approve the plan; review and merge). Invoke with a spec, a spec file, or `bug <description or issue>`. Invoke the stage skills to run one stage alone.
 ---
 
 # factory — the conductor
 
-Chains the pipeline and enforces the two human gates. **Gate 1** = approve the plan (and its handler
-contracts). **Gate 2** = human review and merge. Everything between runs without stopping.
+Chains the pipeline and enforces the two human gates. **Gate 1** = approve the plan, its contracts,
+its verification matrix and (for real UI) its design. **Gate 2** = human review and merge, with the
+evidence in front of them. Everything between runs without stopping.
 
-Each stage is its own skill and runs standalone. This conductor holds the shared state — spec, plan
-path, repo, branch, test baseline — and passes it along.
+Each stage is its own skill and runs standalone. This conductor holds the shared state — spec, plan,
+branch, baseline, run manifest — and passes it along.
 
-**Repo:** resolve once, never hardcode: `REPO=$(git rev-parse --show-toplevel)`,
-`SLN=$(ls "$REPO"/src/*.sln | head -1)`. Backend under `src/`, frontend under `apps/web`.
+**Repo:** resolve, never hardcode: `REPO=$(git rev-parse --show-toplevel)`. Build, test, run and
+worktree commands come from `AGENTS.md` / `CLAUDE.md`; when they disagree with a default here, they win.
 
-**Model assignments:** planning, orchestration and review verification → the session model at high
-effort. Implementation and fixes → **Sonnet**, inside `/factory-execute`.
-
-`$ARGUMENTS` is the spec: literal text, or a path to a spec file.
-
----
-
-## When NOT to use it
-
-A full run is a planner, parallel implementers, three reviewers, a fix loop and a CI babysit. That
-only pays off for real, multi-layer work.
-
-**Just do it directly** when the change is a typo, copy, or formatting fix; a single-file change with
-no test surface; a one-line bug fix you already understand; a dependency bump; or anything you could
-finish, test and explain faster than writing the spec would take.
-
-**Use the factory** when the change spans layers, needs new tests across tiers, touches an auth or
-permission boundary, or has enough surface that a second pair of eyes on architecture is worth
-buying.
+**Models:** planning, Phase 0 contracts, every review, integration and orchestration → the strongest
+model available (the session model unless the repo says otherwise). Building, test writing and fixes
+→ **Sonnet**.
 
 ---
 
-## Pipeline
+## Routes
 
-0. **Route.** Classify the spec before starting any machinery. Judgment picks the route; the three
-   routes themselves are fixed — a probabilistic classifier over deterministic paths:
+Classify first. Judgment picks the route; the routes themselves are fixed.
 
-   | Route | When | What runs |
-   |---|---|---|
-   | `direct` | typo, copy, config, or a single-file change with no test surface | just make the change — no factory |
-   | `single-unit` | one handler-sized change: one unit plus its validation and tests | contracts still written and approved (Gate 1), implement in-session, then `/factory-fix`; the workflow engine is skipped |
-   | `full` | spans layers, new tests across tiers, or touches an auth/permission boundary | the pipeline below |
+| Route | When | What runs |
+|---|---|---|
+| `direct` | typo, copy, config, a single file with no test surface | just make the change |
+| `bugfix` | a defect with a reproducible symptom | reproduce → fix → review → ship → verify (below) |
+| `single-unit` | one handler-sized change | plan + contracts (Gate 1), implement in-session, tests by a different subagent from the contract, `/factory-fix`, ship, verify |
+| `full` | spans layers, new tests across tiers, an auth/permission boundary, or a new screen | the whole pipeline |
 
-   State the route and the one-line reason, and record both in the run manifest. When in doubt
-   between `single-unit` and `full`, pick `full` — the router exists to cut waste, not gates.
+State the route and the one-line reason in the run manifest. Between `single-unit` and `full`, pick
+`full`.
 
-1. **Baseline.** Run the suite before anything changes; record the count and any known failures.
-   Everything after is measured against it. Mass-Inconclusive means Docker is down — fix that first.
+---
 
-2. **Plan** → `/factory-plan` with the spec. Returns the plan path and the **handler contracts**.
+## Pipeline (`full`)
 
-   **GATE 1 — approval.** Present the summary and the contracts and get the user's approval. Use
-   ExitPlanMode if plan mode is active, otherwise ask directly. Incorporate changes and re-confirm.
-   Do not proceed until approved.
+1. **Baseline.** Run the suites before anything changes; record counts and known failures.
+   Mass-Inconclusive or mass-skipped DB tests mean Docker is down — fix that first; it is not a baseline.
 
-   Put the contracts in front of the user, not just the file list. They are the statement of what
-   each handler is *supposed* to do, everything downstream is written and verified against them, and
-   they are cheap to correct now and expensive once tests exist. A wrong contract produces a
-   correct-looking feature, a green suite and a clean review — all agreeing on the wrong thing.
+2. **Plan** → `/factory-plan`. It returns the plan with the decisions block, contracts, Phase 0 file
+   list, lane map, smoke steps and verification matrix, and runs `/ui-triage` (and `/ux-design` when
+   substantive).
 
-3. **Branch.** `git fetch origin && git checkout -b feature/<slug> origin/main`. Never reuse a
-   branch.
+   **GATE 1.** Present the summary, **the contracts in full**, the lane map, the verification matrix
+   and the design's acceptance checklist. Get approval (ExitPlanMode if plan mode is active,
+   otherwise ask). Incorporate changes and re-confirm. **Do not proceed until approved.** Every later
+   decision the user makes goes into the plan's decisions block, dated.
 
-   Then start the **run manifest** — a file next to the plan (`<plan basename>-run.md`) recording:
-   route + rationale, branch, baseline, plan path. Append as they happen: the workflow run id from
-   `/factory-execute`, each review round's verdict, and `/factory-fix`'s dispositions ledger. This
-   is the run's durable memory — what ran, why, with what state — and what makes resuming after an
-   interruption possible without archaeology.
+3. **Branch** — a fresh worktree off the base branch, the repo's way (a helper script if it has one).
+   Never reuse a branch. Start the **run manifest** in the scratchpad (`<scratchpad>/factory/<slug>-run.md`
+   — never in the repo, even when the plan is): route, branch, baseline, plan, UI-triage verdict and design path,
+   then append the workflow run id and args file, each review round's verdict, the dispositions
+   ledger, the verify verdicts and the evidence links. It is what makes a resume possible without
+   archaeology.
 
-4. **Execute** → `/factory-execute` with `planPath`, `repoDir`, `featureBranch`, the baseline. It
-   implements, reviews and tests **per unit** — not all at the end — and fix-loops to green. If it
-   returns not-green, decide whether to iterate before review.
+4. **Execute** → `/factory-execute`. Phase 0 contracts, parallel lanes, integration. Not green → read
+   `stopped`, decide, resume.
 
-5. **Review + fix** → `/factory-fix`. Runs `/factory-review` (correctness + architecture + tests,
-   consolidated and adversarially verified), fixes every confirmed blocker and should-fix, re-tests
-   and re-reviews to **PASS** or its cap. If it hit the cap with residuals, decide whether to iterate
-   before shipping.
+5. **Whole-diff review + fix** → `/factory-fix`. The lane reviews each saw one lane; this catches what
+   only shows across them (a field dropped between two layers that are each correct, a wire name
+   spelled differently). Correctness + architecture + tests, plus `/ux-review --live` when UI triage
+   said substantive. Fresh reviewers, to PASS or the cap.
 
-6. **Ship** → `/factory-ship`. Commits, opens the PR, babysits CI to green.
+6. **Stress (optional; default on for `full` with real UI or risky dates/permissions).** Hunt the
+   bugs nobody listed: `/qa <branch>` if the qa plugin is installed, and/or 2–3 parallel agents each
+   attacking one dimension against the running stack — the UI (rapid clicks, odd widths, long text,
+   back/forward), the API (malformed input, races, someone else's ids), and dates (time zones,
+   midnight, DST). They report; they do not fix. Confirmed in-scope bugs are fixed with a regression
+   test, then **back through `/factory-fix`** so fresh reviewers see the fixes; the rest are reported.
 
-   **GATE 2 — handoff.** It stops merge-ready. The factory does **not** merge.
+7. **Ship** → `/factory-ship`. Commit, push, open the PR, CI to green. Do not merge.
+
+8. **Verify** → `/factory-verify`. Every line of the verification matrix clicked through in the real
+   browser, a GIF per flow, the database cross-checked. Fails are fixed with a regression test proven
+   to fail on the old code and re-verified live; then the conductor runs `/factory-fix` over those
+   fixes (fresh reviewers), pushes, and re-checks CI. The evidence
+   goes to the per-branch evidence folder and is posted to the PR and the issue, as the repo's rules
+   allow.
+
+   **GATE 2 — handoff.** The PR URL, what shipped, test counts against the baseline, review verdicts,
+   the verify matrix with its counts (PASS / FAIL / PARTIAL / SKIPPED), what is not verified and why,
+   and where the evidence is. The factory does **not** merge.
+
+## Route `bugfix`
+
+1. **Baseline and branch** — a fresh branch off the base, suites run, before anything changes.
+2. **Reproduce on the branch, before any change.** `/factory-verify bug-before …` clicks through the
+   reproduction and records a **before** GIF; write the failing regression test. No reproduction →
+   stop and ask; a fix for a bug nobody can see is a guess.
+3. **Gate 1 only when it matters**: if the fix changes intended behaviour, a contract, a migration or
+   crosses layers, present the cause and the fix approach and wait for approval. Otherwise proceed.
+4. **Fix.** Commit, then prove the test fails with the old code put back (`/factory-verify` §5).
+5. **Review** → `/factory-fix` (correctness + tests; add architecture when the fix crosses layers).
+6. **Ship**, then `/factory-verify bug …`: the reproduction now behaves (an **after** GIF), plus the
+   neighbouring paths. Before and after are posted to the PR and the bug's issue. **Gate 2** as usual.
 
 ---
 
 ## Notes
 
-- **Check this repo's push conventions** before stage 6 — `AGENTS.md`/`CLAUDE.md` and stored memory are the
-  source of truth, and they may say push straight to `main` with no PR at all.
-- If a stage stalls or a subagent cannot finish, **stop and report** rather than looping blindly.
-- Local run/debug: API `dotnet run --project src/1.Clients/*.Client.WebApi`; frontend
-  `cd apps/web && npm run dev`. Ports and dev-auth settings are in `AGENTS.md`/`CLAUDE.md`.
-- Keep the living design docs current — that is part of the feature, and `/system-review` §2.2 exists
-  because this is the step that gets skipped.
-
----
+- **Push and tracker conventions** live in `AGENTS.md` / `CLAUDE.md` and stored memory: base branch,
+  whether PRs exist at all, whether Claude may write to the tracker, whether issue identifiers may
+  appear in branches, commits or PRs. They win over every default here.
+- If a stage stalls or an agent cannot finish, **stop and report**; do not loop blindly.
+- Keep the living design docs current; that is part of the feature.
 
 ## The stages, standalone
 
 | Skill | Does | Edits? |
 |---|---|---|
-| `/factory-plan` | Plan + handler contracts + test plan | no |
-| `/factory-execute` | Implement → review → test, per unit | yes |
-| `/factory-review` | All three reviews, one verdict | no |
+| `/factory-plan` | Plan, contracts, lane map, verification matrix | no |
+| `/ui-triage` | none / trivial / substantive UI | no |
+| `/ux-design` | Design doc and acceptance checklist for real UI | no |
+| `/factory-execute` | Contracts → lanes → integration | yes |
+| `/factory-review` | Correctness + architecture + tests (+ UX), one verdict | no |
+| `/ux-review` | UI against the design and the app's look | no |
 | `/architecture-review` | House rules only | no |
-| `/test-review` | Adversarial: do tests prove intent? | no |
+| `/test-review` | Adversarial: do the tests prove intent? | no |
 | `/test-write` | Tests written from a contract | yes |
 | `/factory-fix` | Review → fix → re-review loop | yes |
 | `/factory-ship` | Commit, PR, babysit CI | yes |
+| `/factory-verify` | Browser click-through, GIFs, evidence posted | fixes only inside the factory |
 | `/system-review` | Whole-repo audit, not a diff | no |

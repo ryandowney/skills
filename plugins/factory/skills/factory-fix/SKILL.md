@@ -14,7 +14,8 @@ something needs a decision, not another attempt.
 ## Loop
 
 1. **Review.** `/factory-review` over the scope (current branch by default; `$ARGUMENTS` honoured
-   the same way). Read the verdict and findings.
+   the same way), passing the plan path, the UI-triage verdict and the design path when the caller
+   has them, so the UI review runs when it should. Read the verdict and findings.
 
 2. **PASS → done.** Report the clean verdict and stop.
 
@@ -36,9 +37,12 @@ something needs a decision, not another attempt.
    to match the code.
 
 4. **Re-test the touched areas.**
-   - Backend: `dotnet build "$SLN"`, then targeted `dotnet test --filter "FullyQualifiedName~<area>"`.
+   - Backend: the repo's build, then the targeted tests for the touched area (`AGENTS.md` / `CLAUDE.md`
+    say how — e.g. `dotnet test --filter "FullyQualifiedName~<area>"`).
      Mass-Inconclusive means Docker is down — that is not a pass.
-   - Frontend: `npm run check`, `npm run build`, and any relevant Playwright spec.
+   - Frontend: the repo's type-check and build, its unit tests, and any relevant Playwright spec.
+   - UI findings from `/ux-review`: fix with the component or class it names, then re-render the
+     screen to confirm.
 
 5. **Update the dispositions ledger.** Every finding from this round gets an outcome recorded:
    `fixed`, `dropped (pre-existing)`, or `disputed (<reason>)`. The ledger is append-only across

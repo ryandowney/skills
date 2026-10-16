@@ -19,26 +19,26 @@ instead of opening one, and say so rather than silently following this skill's d
 
 ## Steps
 
-1. **Commit** on the feature branch. End the message with the required trailer:
-   ```
-   Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
-   ```
+1. **Commit** on the feature branch. End the message with the trailer lines this session requires
+   (the system tells you which; use them verbatim). No issue identifier anywhere the repo forbids it.
 
-2. **Push**, then open the PR → `main`:
+2. **Push**, then open the PR against the repo's base branch:
    ```
-   gh pr create --base main --head feature/<slug> ...
+   gh pr create --base <the repo's base branch> --head <feature branch> ...
    ```
    Body: summary, **test evidence** (suite count against the baseline, the frontend gate, and the
    contract-coverage / mutation tables from `/factory-review` — those are the part a reviewer can
-   actually check), link to the plan, and the
+   actually check), link to the plan, a "Verification" heading that `/factory-verify` fills with the
+   matrix and GIFs once it runs, and the
    `🤖 Generated with [Claude Code](https://claude.com/claude-code)` trailer.
 
 3. **Babysit until merge-ready.** Poll `gh pr checks` until green. On failure, read the logs, fix on
    the branch, push, re-poll. If the repo has no CI checks configured, **say that explicitly in the
    handoff** rather than polling forever.
 
-## Output — Gate 2 handoff
+## Output
 
-When green, **stop and hand off**: the PR URL, what shipped, test results against the baseline, and
+Inside the factory, `/factory-verify` runs next against this PR; the Gate 2 handoff comes after it.
+Standalone, when green, **stop and hand off**: the PR URL, what shipped, test results against the baseline, and
 the review verdicts. Merge only if the user explicitly asks — and say what merging triggers if it
 deploys anything.

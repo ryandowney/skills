@@ -1,6 +1,6 @@
 ---
 name: factory-review
-description: Run all three reviews over a diff in one pass — correctness (bugs), architecture-review (house rules), and test-review (do the tests prove the intended behaviour) — then consolidate, dedupe, adversarially verify each finding, and emit one ranked report with a PASS / CHANGES REQUESTED verdict. Report-only; makes no edits. Use to review a branch or uncommitted work without running the whole factory.
+description: Run all three reviews over a diff in one pass — correctness (bugs), architecture-review (house rules), and test-review (do the tests prove the intended behaviour), plus ux-review when real UI changed — then consolidate, dedupe, adversarially verify each finding, and emit one ranked report with a PASS / CHANGES REQUESTED verdict. Report-only; makes no edits. Use to review a branch or uncommitted work without running the whole factory.
 ---
 
 # factory-review — all three reviews, one verified report
@@ -33,7 +33,7 @@ that was red already is not this diff's finding.
 
 ---
 
-## 2. Run all three
+## 2. Run them all
 
 Run them in parallel — they are complementary, not redundant.
 
@@ -57,11 +57,17 @@ findings before §3 — consolidation happens there, in this orchestrator, never
 3. **Tests.** `/test-review` — contract coverage in all four directions, wrong-entry-point checks,
    and the mutation pass that falsifies each claim of coverage.
 
+4. **UI (when the caller passes a `substantive` UI-triage verdict, or asks; standalone, run `/ui-triage`
+   on the plan when the diff touches the frontend).**
+   `/ux-review --design <design doc> --live` — reuse of the app's components, no nested dialogs,
+   spacing in the app's scale, every state present, the design's acceptance checklist. Its
+   blocker / should-fix findings join the consolidation below like any other.
+
 ---
 
 ## 3. Consolidate
 
-- Merge all three result sets; **dedupe** findings landing on the same `file:line` / same defect.
+- Merge every reviewer's result set; **dedupe** findings landing on the same `file:line` / same defect.
   The same missing gate legitimately shows up as a correctness bug *and* an untested behaviour —
   report it once, at the higher severity, mentioning both angles.
 - **Honour the dispositions ledger** when the caller supplies one (`/factory-fix` maintains it
