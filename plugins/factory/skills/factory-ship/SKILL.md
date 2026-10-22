@@ -44,7 +44,13 @@ instead of opening one, and say so rather than silently following this skill's d
    subagent (Haiku, low effort) that reports only the final state and the failing job names, so the
    wait costs nothing; read the failing job's log by `grep` / `tail` (`gh run view --log-failed`
    piped to a file), not whole, and decide fixes yourself. On failure, fix on the branch, run the
-   affected tests, push, re-poll — CI's next run is the full one. If the repo has no CI checks configured, **say that explicitly in the
+   affected tests, push, re-poll — CI's next run is the full one.
+
+   **CI speed.** PR pushes should run the affected tests (the selection agents use: changed projects
+   and their contract dependents, `vitest related`, Playwright `--only-changed`); the full suites run on
+   merge to the integration branch and nightly. Don't rerun the whole e2e suite on every push to a
+   stacked branch. If CI runs everything on every push, ship anyway and note it in the handoff as a
+   speed-up the repo could take. If the repo has no CI checks configured, **say that explicitly in the
    handoff** rather than polling forever.
 
 ## Output

@@ -34,7 +34,8 @@ something needs a decision, not another attempt.
    **Test findings are fixed by writing tests, never by weakening them.** A survived mutation means
    the test could not fail; the fix is a test that *can*, via `/test-write` from the handler's
    contract. Deleting the assertion, loosening it, or adding `[Ignore]` is not a fix — it is the
-   defect with the evidence removed. If a `MUST` line has no test, write the test; if the contract
+   defect with the evidence removed. If a contract line has no test at any level, write one at the
+   level the plan's test budget assigns (not a mechanical pair at every level); if the contract
    line itself is wrong, that is a design question — surface it rather than quietly editing intent
    to match the code.
 

@@ -34,6 +34,17 @@ The conductor decides when a full run happens and acts on its result, but **neve
 own context**: it hands the run to a runner (a `mechanicalModel` agent or a shell step) that writes the
 output to a log and returns counts, failing test names and the log path.
 
+**Tests are budgeted, not maximised.** The plan sets each lane's budget: unit tests (mocking the layer
+below) only where logic is dense, property or fuzz tests there; integration tests at the boundaries that
+matter, run stage by stage as integration merges bottom-up; e2e only for the matrix's journeys. Quality
+is judged by targeted mutation of high-risk lines, not by count. The effort this saves goes to what
+found the serious bugs: adversarial review with failure-mode reasoning, and real-stack smoke and stress.
+
+**CI speed.** PR pushes run the **affected** tests (the same selection rules agents use); the full
+suites run on merge to the integration branch and nightly. Don't rerun the whole e2e suite on every push
+to a stacked branch. Where the repo's CI does not work this way yet, say so at Gate 2 rather than
+waiting on full runs per push; the feature's final full run is still CI's (below).
+
 **Watch for milestones, not steps.** While a workflow or CI runs, surface only lane done / blocked,
 integration, the PR, CI green or red. Every relayed step lands in this context; on a six-lane run the
 per-step events alone filled the window.
@@ -78,19 +89,24 @@ State the route and the one-line reason in the run manifest. Between `single-uni
    ledger, the verify verdicts and the evidence links. It is what makes a resume possible without
    archaeology.
 
-4. **Execute** → `/factory-execute`. Phase 0 contracts, parallel lanes, integration. Pass the plan's
-   Shared files that another plan owns as `foreignOwned`. Not green → read `stopped`, decide, resume.
+4. **Execute** → `/factory-execute`. Phase 0 contracts, parallel lanes, integration bottom-up one
+   layer at a time (each stage's integration tests after its merge, fixed at the stage that failed).
+   Pass the plan's Shared files that another plan owns as `foreignOwned`, and its rolling merge-ins as
+   `laneMergeIn`. Not green → read `stopped`, decide, resume.
 
 5. **Whole-diff review + fix** → `/factory-fix`. The lane reviews each saw one lane; this catches what
    only shows across them (a field dropped between two layers that are each correct, a wire name
    spelled differently). Correctness + architecture + tests, plus `/ux-review --live` when UI triage
    said substantive. Fresh reviewers, to PASS or the cap.
 
-6. **Stress (optional; default on for `full` with real UI or risky dates/permissions).** Hunt the
-   bugs nobody listed: `/qa <branch>` if the qa plugin is installed, and/or 2–3 parallel agents each
+6. **Stress — mandatory for anything with a queue, an external API or a user-facing flow** (and
+   for risky dates or permissions); optional otherwise. Real-stack smoke and stress found the second
+   tier of serious bugs in the overnight run, so this is where saved test effort goes. Hunt the bugs
+   nobody listed: `/qa <branch>` if the qa plugin is installed, and/or 2–3 parallel agents each
    attacking one dimension against the running stack — the UI (rapid clicks, odd widths, long text,
-   back/forward), the API (malformed input, races, someone else's ids), and dates (time zones,
-   midnight, DST). Each derives its URLs from the repo's own env / port mechanism for its worktree
+   back/forward, closing or leaving mid-edit), the API (malformed and oversized input, races, someone
+   else's ids, missing referenced data), messaging (the same message twice, a dependency throttling
+   or timing out, upstream data moved or deleted), and dates (time zones, midnight, DST). Each derives its URLs from the repo's own env / port mechanism for its worktree
    (never a hardcoded port — another run may be up beside it) and writes any helper script under a
    per-run folder named for the branch, never at a shared name. They report; they do not fix. Confirmed in-scope bugs are fixed with a regression
    test, then **back through `/factory-fix`** so fresh reviewers see the fixes; the rest are reported.

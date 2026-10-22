@@ -1,9 +1,9 @@
 ---
 name: factory-execute
-description: Execute an approved plan — Phase 0 writes every contract as compiling code in one commit, then parallel lanes (each in its own worktree, owning disjoint files) build, get tests written from the contract by a different agent, get an adversarial review with targeted mutation on high-risk lines, and fix; then one integration merges the lanes and runs the full suites and a real-stack smoke. Wraps the deterministic factory workflow. Use as the factory's build stage after the plan is approved and the branch is cut.
+description: Execute an approved plan — Phase 0 writes every contract as compiling code in one commit, then parallel lanes (each in its own worktree, owning disjoint files) build, get unit tests written from the contract by a different agent within the plan's test budget, get an adversarial review with failure-mode reasoning and targeted mutation on high-risk lines, and fix; then integration merges the lanes bottom-up one layer at a time, running each stage's integration tests, and ends with the full suites and a real-stack smoke. Wraps the deterministic factory workflow. Use as the factory's build stage after the plan is approved and the branch is cut.
 ---
 
-# factory-execute — contracts first, lanes in parallel, one integration
+# factory-execute — contracts first, lanes in parallel, integration layer by layer
 
 Drives an **approved** plan to a green, integrated feature branch.
 
@@ -25,7 +25,8 @@ commit. After that, lanes never guess: they build against frozen, compiling cont
 layer below.
 
 **Speed.** With contracts frozen, the layers no longer have to wait for each other: each lane runs
-build → tests → review → fix concurrently in its own worktree. The expensive passes are spent where
+build → tests → review → fix concurrently in its own worktree, unit-testing against mocks of the layer
+below, so no lane is ever blocked by a sibling's stubs. The expensive passes are spent where
 they earn it: mutation only on high-risk lines, a re-review only after a blocker fix, the full suites
 once at integration rather than at every step.
 
@@ -56,17 +57,48 @@ quality gate):
   still a Phase 0 shell is listed as `deferred`, not counted against the lane; integration must show it
   green, and one still red there is a real failure.
 
+**Layered integration and a test budget.** The overnight run's most serious bugs (a sanitiser stack
+overflow, a quadratic memory blow-up on crafted HTML, rows lost on redelivery, throttled calls
+dead-lettering mail, a lost-update race) came from adversarial review, and the next tier (a thread
+marked read by older outbound mail, an editor crash on close, a missing blob returning 500, Back
+discarding a draft) from real-stack smoke and stress. Contract tests from an independent agent found
+real but smaller defects; mutation checks found missing tests, not bugs. Meanwhile each PR added
+~500 tests, mostly mechanical positive+negative pairs, and lanes whose tests needed another lane's
+real code sat blocked on stubs. So:
+
+- **Lanes write unit tests** that mock the layer below through the frozen contracts — fast, fully
+  parallel — only where logic is dense, preferring property-based or fuzz tests there. Integration
+  tests go where the boundaries are (data access against a real store; per use case one happy path
+  plus the edges that matter) and e2e only for the matrix's journeys. Each lane's **budget** comes from
+  the plan and is handed verbatim to its test writer. Every contract line still owes one test that can
+  fail, at the level the plan names; quality is judged by targeted mutation, not by count.
+- **Integration merges bottom-up, one stage at a time** (data access → engines/domain →
+  orchestration/managers → API → UI, as the plan's Integration stages declare) and runs that stage's
+  integration tests through the cheap runner after each merge. A failure is then in the layer just
+  merged or its contract with the one below, and it is fixed there, on the review model, before
+  anything is merged on top. The full suites still run once after the last stage.
+- **The saved effort goes to what found the serious bugs**: every lane review reasons through failure
+  modes (redelivery, retries and throttling, concurrency, hostile input size and shape, partial failure
+  between two writes, upstream data moved or deleted), and real-stack smoke plus stress stay mandatory
+  for anything with a queue, an external API or a user-facing flow.
+- **Rolling merge-in stays an option** (`laneMergeIn`): a long-running upper lane pulls a finished,
+  reviewed lower lane into its branch after its build and writes and runs its tests against the real
+  code.
+
 `.factory/` is scaffolding: briefs are committed on the feature branch before Phase 0 so every lane
 worktree has them, status files on each lane branch. Integration removes the folder (`git rm -r
-.factory`) right after merging, so it never reaches the PR; `/factory-ship` checks.
+.factory`) at each stage's merge, so it never reaches the PR; `/factory-ship` checks.
 
 ```
 decompose (mechanical model) + briefs (brief model) → Phase 0 contracts (1 commit, strong model)
    └─ lanes in parallel, each in its own worktree, each agent checking the lane's status file first:
-        build (build model) → tests from contract (build model, other agent)
-          → adversarial review + targeted mutation (review model) → fix (build) [→ re-review if a blocker was fixed]
-   └─ integrate: merge lanes → drop .factory/ → build (review model) → FULL suites once (runner, mechanical model)
-        → fix what they found, re-running only those tests → real-stack smoke (review model)
+        build (build model) [→ merge-in of finished lower lanes, laneMergeIn only]
+          → unit + merge-stage tests from contract, within the lane's budget (build model, other agent)
+          → adversarial review + failure modes + targeted mutation (review model) → fix (build) [→ re-review if a blocker was fixed]
+   └─ integrate, bottom-up, per stage: merge its lanes → drop .factory/ → build (review model)
+        → that stage's integration tests (runner, mechanical model) → fix at this stage (review model) → re-run → next stage
+   └─ after the last stage: FULL suites once (runner) → fix what they found, re-running only those tests
+        → real-stack smoke (review model)
    └─ teardown (mechanical): remove every lane worktree + branch that is merged and clean; keep and report the rest
 ```
 
@@ -82,7 +114,8 @@ happen, and it goes when the PR merges.
 
 ## Prerequisites (the caller supplies these)
 
-- `planPath` — the approved plan with its contracts, Phase 0 file list, lane map and smoke steps
+- `planPath` — the approved plan with its contracts, Phase 0 file list, lane map (with each lane's
+  test budget), integration stages and smoke steps
   (and its **Shared files** section when it sits in a stack or beside sibling plans)
 - `repoDir` — the feature worktree, already on `featureBranch`
 - the baseline from `/factory-plan`
@@ -107,7 +140,8 @@ happen, and it goes when the PR merges.
      laneSetupNote: "<per-worktree setup, e.g. copy app/.env>",
      gitTrailer: "<the commit trailer lines this session requires>",
      repoRules: "<repo-specific hard rules>",
-     foreignOwned: ["<every path the plan's Shared files section gives to ANOTHER plan>"] } })
+     foreignOwned: ["<every path the plan's Shared files section gives to ANOTHER plan>"],
+     laneMergeIn: { "<upper lane>": ["<lower lane>"] } } })    // optional; stages and budgets come from the plan
    ```
    Models, by tier — no tier names a strong model unless you pass one:
 
@@ -130,6 +164,13 @@ happen, and it goes when the PR merges.
    the plan's always-run tests for breakage impact analysis misses — reflection-based handler
    resolution, migrations and the model snapshot, DI registration, config. Any agent that touches a
    matching path runs them, so the cheap affected-test selection never hides that kind of break.
+
+   The integration stages and each lane's budget are read from the plan (`stages` and a lane's
+   `budget` override them, as `lanes` does the lane map). A plan with no Integration stages merges every
+   lane in one stage with no stage tests, as before. `maxStageFixRounds` (default 2) caps fix → re-run
+   rounds per stage. `laneMergeIn` must name lower lanes in the same or an earlier stage, and no cycle;
+   decompose checks both in code. A lower lane that does not finish clean is not merged in — the upper
+   lane carries on with mocks and deferred tests.
 
    `foreignOwned` names files a sibling plan owns. Decompose stops if any lane claims one, and every
    agent builds against the owner's contract (or the stub the plan names) instead of re-implementing it.
@@ -155,7 +196,9 @@ happen, and it goes when the PR merges.
    | `decompose` (`overlaps` / `bad`) | two lanes own the same paths, or a lane owns none | fix the plan's lane map; re-run (the plan changed, so the cache is gone anyway) |
    | `decompose` (`foreign`) | a lane claims a path in `foreignOwned` | the lane map or the Shared files section is wrong: give the file to one plan only |
    | `decompose` (`briefs`) | the lane briefs were not committed | read its summary; usually an ignored `.factory/` the agent did not `add -f` |
+   | `decompose` (`stageErr` / `mergeErr`) | a lane is in no integration stage or in two, or `laneMergeIn` names an unknown lane, a later-stage lane or a cycle | fix the plan's Integration stages or lane map |
    | `contracts` | Phase 0 could not make it build, or made no commit | read its issues; usually a plan gap |
+   | `integration` (`stage`) | that stage stayed red after `maxStageFixRounds`, its merge failed, or its tests could not run (`infraDown`) | nothing above it was merged. Read `stages` (counts, failing names, log glob) and judge it at that layer; fix on the feature branch and resume. Lanes above it are kept by teardown, unmerged |
    | `integration` not done, `fullRun.infraDown` | the full suites never really ran (a container down, a suite that could not start) | fix the machine, then resume; the logs are at `logs` |
    | `lanes-setup` | worktrees could not be created | read its summary; usually the worktree helper or a leftover worktree |
    | `lanes` | a lane is blocked — see each lane's `summary`, counts and `statusFile` | judge it. A summary saying **a review left a mutation in the tree** means sabotaged code may be in that worktree: **inspect `git diff` there before anything else**. Otherwise fix by hand on the lane branch, commit, and resume with `acceptedLanes: ["<key>"]` added — a blocked result is cached, so a plain resume just stops again |
@@ -169,13 +212,14 @@ happen, and it goes when the PR merges.
    only the `-lane-` entries still registered, and should be empty otherwise. Record both in the run manifest.
 
    The result is compact on purpose: per lane, status, branch, counts (findings, mutations killed and
-   survived, `deferred`, `notes`) and a `statusFile` path; for integration, the full run's counts and
-   log paths. Paths start with `${TMPDIR:-/tmp}` — expand them in a shell. The detail is in the status
+   survived, `deferred`, `notes`, `mergedIn` when it merged lanes in) and a `statusFile` path; per
+   integration stage, status, counts, fix rounds and a log glob; for integration, the full run's counts
+   and log paths. Paths start with `${TMPDIR:-/tmp}` — expand them in a shell. The detail is in the status
    files (copied out of the repo at integration; in the lane worktree for a lane that stopped), read
    with `jq` or by section, never all at once.
 
    `deferred` counts a lane's tests that were red only because another lane was still a stub.
-   Integration ran them green or fixed them; check its result says so.
+   The first integration stage that holds both lanes ran them; check its result says so.
 
    `notes` counts contract ambiguities the builder resolved and findings the fixer disputed — the
    `issues` of the `build` and `fix-*` stages in the status file. Write them into the run manifest's
@@ -184,16 +228,16 @@ happen, and it goes when the PR merges.
 
    When `green: true`, spot-check without running suites in your own context: compare the integration
    counts with the baseline (a runner ran them; the logs are at `logs`). `git ls-files .factory` on the feature
-   branch prints nothing. A suite that grew by fewer tests than the contracts owe means a lane skipped
-   cases.
+   branch prints nothing. A suite that grew by far more than the plan's budgets add up to means a
+   lane wrote mechanical cases; one that grew by less means a lane skipped contract lines.
 
    The lanes mutate only their high-risk lines. The full mutation pass — every `MUST` and `ORDER` line —
    is `/test-review`'s, inside `/factory-fix`. Do not drop it because the lanes "already mutated".
 
 ## Output
 
-Per-lane status and finding counts, the mutation counts (killed · survived; the lines are in the status files), the integration test counts against
-the baseline, the smoke results, and which contract lines are covered and which are not. If not
+Per-lane status and finding counts, the mutation counts (killed · survived; the lines are in the status files), each
+integration stage's result and fix rounds, the integration test counts against the baseline, the smoke results, and which contract lines are covered and which are not. If not
 green, say exactly what is red and hand the decision back — **do not loop blindly**.
 
 ## Notes
