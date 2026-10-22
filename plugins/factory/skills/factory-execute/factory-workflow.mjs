@@ -39,7 +39,9 @@ export const meta = {
 //   laneReviewModel: model for the lane review's reading pass only. Default: reviewModel. A cheaper one is an experiment
 //                   to measure: the high-risk mutation checks and the whole-diff review stay on reviewModel regardless.
 //   buildModel:     model for build, tests and fixes. Default 'sonnet'.
-//   mechanicalModel: model for decompose extraction and briefs, lane setup and teardown (low effort). Default 'haiku'.
+//   mechanicalModel: model for decompose extraction, lane setup and teardown (low effort). Default 'haiku'.
+//   briefModel:     model that writes the per-lane briefs. Default 'sonnet' — every lane builds from its brief, so a
+//                   dropped contract line there costs more than the step saves on a cheaper model.
 //   maxReviewRounds: re-reviews after a blocker fix, per lane (default 1)
 //   lanes:          optional — skip extraction and use this lane map ([{ key, name, owns:[paths], planSection, testCmd }]);
 //                   briefs are still written from the plan
@@ -66,6 +68,8 @@ const LANE_REVIEW = A.laneReviewModel ? { model: A.laneReviewModel } : REVIEWM
 const SPLIT_REVIEW = (LANE_REVIEW.model || '') !== (REVIEWM.model || '')
 const BUILD = { model: A.buildModel || 'sonnet' }
 const MECH = { model: A.mechanicalModel || 'haiku', effort: 'low' }
+// Briefs are copying, but every lane depends on them being complete, so they get a model that copies reliably.
+const BRIEF = { model: A.briefModel || 'sonnet' }
 const MAX_REVIEW = A.maxReviewRounds ?? 1
 const BUILD_CMDS = (A.buildCmds || []).join(' && ') || "the repo's build and type-check commands from AGENTS.md / CLAUDE.md"
 const TEST_CMDS = (A.testCmds || []).join(' ; ') || 'every test suite the repo has (AGENTS.md / CLAUDE.md say how)'
@@ -210,7 +214,7 @@ never summarised:
 Lanes:
 ${D.lanes.map(l => `- ${l.key} (${l.name}) — owns ${l.owns.join(', ')}; plan ${l.planSection || 'see lane map'}`).join('\n')}
 Write nothing else. \`git add -f .factory/briefs\` and make ONE commit. Return its sha.`,
-  { label: 'briefs', phase: 'Decompose', schema: STAGE, ...MECH })
+  { label: 'briefs', phase: 'Decompose', schema: STAGE, ...BRIEF })
 if (!briefs || briefs.status !== 'done' || !briefs.commit) return { stopped: { step: 'decompose', reason: 'the lane briefs were not committed', briefs } }
 
 // ---- Phase 0: contracts as code -----------------------------------------------

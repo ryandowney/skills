@@ -54,7 +54,7 @@ worktree has them, status files on each lane branch. Integration removes the fol
 .factory`) right after merging, so it never reaches the PR; `/factory-ship` checks.
 
 ```
-decompose + briefs (mechanical model) → Phase 0 contracts (1 commit, strong model)
+decompose (mechanical model) + briefs (brief model) → Phase 0 contracts (1 commit, strong model)
    └─ lanes in parallel, each in its own worktree, each agent checking the lane's status file first:
         build (build model) → tests from contract (build model, other agent)
           → adversarial review + targeted mutation (review model) → fix (build) [→ re-review if a blocker was fixed]
@@ -106,7 +106,8 @@ happen, and it goes when the PR merges.
    | review | `reviewModel` (= `strongModel`) | lane review, re-review, the high-risk mutations, integration |
    | lane review | `laneReviewModel` (= `reviewModel`) | the lane review's reading pass only — see below |
    | build | `buildModel` (`sonnet`) | build, tests, fixes |
-   | mechanical | `mechanicalModel` (`haiku`, low effort) | decompose extraction and briefs, lane setup, teardown |
+   | mechanical | `mechanicalModel` (`haiku`, low effort) | decompose extraction, lane setup, teardown |
+| briefs | `briefModel` (`sonnet`) | the per-lane briefs — every lane builds from one, so completeness matters more than the saving |
 
    **`laneReviewModel` is an experiment, opt-in.** Setting it cheaper than `reviewModel` splits the lane
    review in two, run in sequence: the cheaper model reads and reports, then a `reviewModel` pass runs the
