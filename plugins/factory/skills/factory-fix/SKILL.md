@@ -22,7 +22,9 @@ something needs a decision, not another attempt.
 3. **Fix** every confirmed **blocker** and **should-fix** (skip nits unless trivial):
 
    - Small set → edit directly. Large and independent → parallel Sonnet fix agents, one per finding
-     or per file, each given the finding, the fix, and the house rules.
+     or per file, each given the finding, the fix, and only the house-rule passages for that file.
+     Reviewers in step 1 run on the review tier (`reviewModel` when the caller set one, else the
+     session model) — never a cheaper one.
    - **Decide the fixes yourself.** Hand agents exact resolutions; do not delegate design.
    - **Only fix what this diff owns.** A finding that turns out to be pre-existing gets dropped, not
      fixed — fixing it widens the diff and muddies the change.
@@ -36,7 +38,8 @@ something needs a decision, not another attempt.
    line itself is wrong, that is a design question — surface it rather than quietly editing intent
    to match the code.
 
-4. **Re-test the touched areas.**
+4. **Re-test the touched areas** — the suites the fixes touch, not the full suites: those ran at
+   integration and run again in `/factory-ship` before the PR.
    - Backend: the repo's build, then the targeted tests for the touched area (`AGENTS.md` / `CLAUDE.md`
     say how — e.g. `dotnet test --filter "FullyQualifiedName~<area>"`).
      Mass-Inconclusive means Docker is down — that is not a pass.

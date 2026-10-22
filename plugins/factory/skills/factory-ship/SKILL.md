@@ -19,6 +19,11 @@ instead of opening one, and say so rather than silently following this skill's d
 
 ## Steps
 
+0. **Full suites, once.** This is the second and last full run of the feature (the first was at
+   integration); `/factory-fix` and `/factory-verify` ran only what they touched. Anything red stops
+   the ship. Check `git ls-files .factory` prints nothing — the factory's lane scaffolding never
+   ships; if it is there, `git rm -r .factory` and commit.
+
 1. **Commit** on the feature branch. End the message with the trailer lines this session requires
    (the system tells you which; use them verbatim). No issue identifier anywhere the repo forbids it.
 
@@ -32,8 +37,10 @@ instead of opening one, and say so rather than silently following this skill's d
    matrix and GIFs once it runs, and the
    `🤖 Generated with [Claude Code](https://claude.com/claude-code)` trailer.
 
-3. **Babysit until merge-ready.** Poll `gh pr checks` until green. On failure, read the logs, fix on
-   the branch, push, re-poll. If the repo has no CI checks configured, **say that explicitly in the
+3. **Babysit until merge-ready.** Poll `gh pr checks` until green — hand the polling to a cheap
+   subagent (Haiku, low effort) that reports only the final state and the failing job names, so the
+   wait costs nothing; read the logs and decide fixes yourself. On failure, fix on the branch, push,
+   re-poll. If the repo has no CI checks configured, **say that explicitly in the
    handoff** rather than polling forever.
 
 ## Output

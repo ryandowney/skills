@@ -29,13 +29,37 @@ build → tests → review → fix concurrently in its own worktree. The expensi
 they earn it: mutation only on high-risk lines, a re-review only after a blocker fix, the full suites
 once at integration rather than at every step.
 
+**Tokens.** A six-lane run cost about 2.7M subagent tokens, and each resume about 2M more, because
+finished lanes redid their tests and reviews. Most of that bought nothing, so (none of it touches a
+quality gate):
+
+- **Cache-stable, idempotent lanes.** No lane prompt embeds another agent's free text — only the
+  branch, a sha, counts and test names. Each lane keeps a status file on its branch
+  (`.factory/lanes/<key>.json`: stage, sha, verdict, open findings, and each stage's recorded result);
+  every lane agent checks it first and returns the recorded result when its stage is already done for
+  the current code. A resume with unchanged work therefore replays from cache instead of redoing it.
+- **Per-lane briefs.** Decompose writes `.factory/briefs/<key>.md`: the lane's decisions, contracts,
+  test cases, high-risk lines, owned paths and only the house-rule passages for those paths — verbatim.
+  Lane agents read the brief and open the full plan only for a section it names. Phase 0, integration
+  and the whole-diff review still read the whole plan.
+- **Tests where they answer a question.** Lanes run only their own `testCmd`; the full suites run once
+  at integration and once before the PR (`/factory-ship`, then CI).
+- **Model tiers.** Judgment stays on the strong tier; copying and fixed command lists go to a cheap one.
+- **Cross-lane stubs are not failures.** A lane test that is red only because another lane's code is
+  still a Phase 0 shell is listed as `deferred`, not counted against the lane; integration must show it
+  green, and one still red there is a real failure.
+
+`.factory/` is scaffolding: briefs are committed on the feature branch before Phase 0 so every lane
+worktree has them, status files on each lane branch. Integration removes the folder (`git rm -r
+.factory`) right after merging, so it never reaches the PR; `/factory-ship` checks.
+
 ```
-Phase 0 contracts (1 commit, strong model)
-   └─ lanes in parallel, each in its own worktree:
+decompose + briefs (mechanical model) → Phase 0 contracts (1 commit, strong model)
+   └─ lanes in parallel, each in its own worktree, each agent checking the lane's status file first:
         build (build model) → tests from contract (build model, other agent)
-          → adversarial review + targeted mutation (strong) → fix (build) [→ re-review if a blocker was fixed]
-   └─ integrate: merge lanes → build → FULL suites once → real-stack smoke (strong)
-   └─ teardown: remove every lane worktree + branch that is merged and clean; keep and report the rest
+          → adversarial review + targeted mutation (review model) → fix (build) [→ re-review if a blocker was fixed]
+   └─ integrate: merge lanes → drop .factory/ → build → FULL suites once → real-stack smoke (review model)
+   └─ teardown (mechanical): remove every lane worktree + branch that is merged and clean; keep and report the rest
 ```
 
 **Worktrees are scaffolding.** Each lane works in its own worktree on its own branch; the integration
@@ -51,6 +75,7 @@ happen, and it goes when the PR merges.
 ## Prerequisites (the caller supplies these)
 
 - `planPath` — the approved plan with its contracts, Phase 0 file list, lane map and smoke steps
+  (and its **Shared files** section when it sits in a stack or beside sibling plans)
 - `repoDir` — the feature worktree, already on `featureBranch`
 - the baseline from `/factory-plan`
 
@@ -70,14 +95,33 @@ happen, and it goes when the PR merges.
      teardownCmd: "<how to remove one, with {path} {name} — default git worktree remove {path}>",
      laneSetupNote: "<per-worktree setup, e.g. copy app/.env>",
      gitTrailer: "<the commit trailer lines this session requires>",
-     repoRules: "<repo-specific hard rules>" } })
+     repoRules: "<repo-specific hard rules>",
+     foreignOwned: ["<every path the plan's Shared files section gives to ANOTHER plan>"] } })
    ```
-   Planning, contracts, review and integration run on the session model (or `strongModel`); build,
-   tests and fixes on `buildModel` (default Sonnet).
+   Models, by tier — no tier names a strong model unless you pass one:
+
+   | Tier | Arg (default) | Runs |
+   |---|---|---|
+   | strong | `strongModel` (the session model) | Phase 0 contracts |
+   | review | `reviewModel` (= `strongModel`) | lane review, re-review, the high-risk mutations, integration |
+   | lane review | `laneReviewModel` (= `reviewModel`) | the lane review's reading pass only — see below |
+   | build | `buildModel` (`sonnet`) | build, tests, fixes |
+   | mechanical | `mechanicalModel` (`haiku`, low effort) | decompose extraction and briefs, lane setup, teardown |
+
+   **`laneReviewModel` is an experiment, opt-in.** Setting it cheaper than `reviewModel` splits the lane
+   review in two, run in sequence: the cheaper model reads and reports, then a `reviewModel` pass runs the
+   high-risk mutations. The mutation checks and the whole-diff review in `/factory-fix` always stay on
+   `reviewModel`. Measure before keeping it: compare the lane findings, and what the whole-diff review
+   then catches that the lanes missed, against runs without it.
+
+   `foreignOwned` names files a sibling plan owns. Decompose stops if any lane claims one, and every
+   agent builds against the owner's contract (or the stub the plan names) instead of re-implementing it.
 
    **Keep the args in a file** in the scratchpad (`<scratchpad>/factory/<slug>-workflow-args.json`,
    never in the repo) and pass the same object on every resume. Changing any arg changes every prompt
-   that embeds it, and the cache then re-runs finished work. The one exception is `acceptedLanes`.
+   that embeds it, and the cache then re-runs finished work. The one exception is `acceptedLanes`. The
+   lane status files are the safety net when an arg did change: each re-asked lane agent finds its stage
+   recorded and returns the result instead of redoing it.
 
 3. **Record the run id** in the run manifest. Resume a failed or interrupted run with
    `resumeFromRunId` and identical args — finished agents return cached; only the failed step onward
@@ -88,6 +132,8 @@ happen, and it goes when the PR merges.
    | `stopped.step` | Means | Do |
    |---|---|---|
    | `decompose` (`overlaps` / `bad`) | two lanes own the same paths, or a lane owns none | fix the plan's lane map; re-run (the plan changed, so the cache is gone anyway) |
+   | `decompose` (`foreign`) | a lane claims a path in `foreignOwned` | the lane map or the Shared files section is wrong: give the file to one plan only |
+   | `decompose` (`briefs`) | the lane briefs were not committed | read its summary; usually an ignored `.factory/` the agent did not `add -f` |
    | `contracts` | Phase 0 could not make it build, or made no commit | read its issues; usually a plan gap |
    | `lanes-setup` | worktrees could not be created | read its summary; usually the worktree helper or a leftover worktree |
    | `lanes` | a lane is blocked — see each lane's `summary` and `notes` | judge it. A summary saying **a review left a mutation in the tree** means sabotaged code may be in that worktree: **inspect `git diff` there before anything else**. Otherwise fix by hand on the lane branch, commit, and resume with `acceptedLanes: ["<key>"]` added — a blocked result is cached, so a plain resume just stops again |
@@ -100,13 +146,17 @@ happen, and it goes when the PR merges.
    **After every run, read `teardown`**: `kept` lists what is still on disk and why; `worktreeList` should
    show no `-lane-` entries otherwise. Record both in the run manifest.
 
+   Every lane returns `deferred`: its tests that were red only because another lane was still a stub.
+   Integration ran them green or fixed them; check its result says so.
+
    Every lane returns `notes`: contract ambiguities the builder resolved and findings the fixer
    disputed. Write them into the run manifest's dispositions ledger so `/factory-fix` honours them
    instead of re-litigating, and treat any builder note that changes a contract as a question for the
    user.
 
-   When `green: true`, spot-check: run the touched test classes yourself, and compare the suite counts
-   with the baseline. A suite that grew by fewer tests than the contracts owe means a lane skipped
+   When `green: true`, spot-check: run the touched test classes yourself (not the full suites — integration
+   just ran them), and compare the suite counts with the baseline. `git ls-files .factory` on the feature
+   branch prints nothing. A suite that grew by fewer tests than the contracts owe means a lane skipped
    cases.
 
    The lanes mutate only their high-risk lines. The full mutation pass — every `MUST` and `ORDER` line —

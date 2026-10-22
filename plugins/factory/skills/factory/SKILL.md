@@ -15,9 +15,16 @@ branch, baseline, run manifest — and passes it along.
 **Repo:** resolve, never hardcode: `REPO=$(git rev-parse --show-toplevel)`. Build, test, run and
 worktree commands come from `AGENTS.md` / `CLAUDE.md`; when they disagree with a default here, they win.
 
-**Models:** planning, Phase 0 contracts, every review, integration and orchestration → the strongest
-model available (the session model unless the repo says otherwise). Building, test writing and fixes
-→ **Sonnet**.
+**Models:** planning, Phase 0 contracts, every review, integration and orchestration → the session
+model (no stage names a stronger one unless the caller passes it). Building, test writing and fixes →
+**Sonnet**. Mechanical steps — extracting the lane map, writing lane briefs, creating and tearing down
+worktrees, watching CI — → **Haiku** at low effort: they copy text or run a fixed command list, and
+judgment spent there buys nothing. `/factory-execute` exposes each tier as an arg.
+
+**Tokens:** spend them where they find defects. Every agent reads only what its job needs (lane
+agents read a per-lane brief, not the whole plan); full suites run twice per feature — at integration
+and before the PR — and targeted tests everywhere else; a resume replays finished work from cache.
+None of this relaxes a gate below.
 
 ---
 
@@ -58,8 +65,8 @@ State the route and the one-line reason in the run manifest. Between `single-uni
    ledger, the verify verdicts and the evidence links. It is what makes a resume possible without
    archaeology.
 
-4. **Execute** → `/factory-execute`. Phase 0 contracts, parallel lanes, integration. Not green → read
-   `stopped`, decide, resume.
+4. **Execute** → `/factory-execute`. Phase 0 contracts, parallel lanes, integration. Pass the plan's
+   Shared files that another plan owns as `foreignOwned`. Not green → read `stopped`, decide, resume.
 
 5. **Whole-diff review + fix** → `/factory-fix`. The lane reviews each saw one lane; this catches what
    only shows across them (a field dropped between two layers that are each correct, a wire name
@@ -70,10 +77,12 @@ State the route and the one-line reason in the run manifest. Between `single-uni
    bugs nobody listed: `/qa <branch>` if the qa plugin is installed, and/or 2–3 parallel agents each
    attacking one dimension against the running stack — the UI (rapid clicks, odd widths, long text,
    back/forward), the API (malformed input, races, someone else's ids), and dates (time zones,
-   midnight, DST). They report; they do not fix. Confirmed in-scope bugs are fixed with a regression
+   midnight, DST). Each derives its URLs from the repo's own env / port mechanism for its worktree
+   (never a hardcoded port — another run may be up beside it) and writes any helper script under a
+   per-run folder named for the branch, never at a shared name. They report; they do not fix. Confirmed in-scope bugs are fixed with a regression
    test, then **back through `/factory-fix`** so fresh reviewers see the fixes; the rest are reported.
 
-7. **Ship** → `/factory-ship`. Commit, push, open the PR, CI to green. Do not merge.
+7. **Ship** → `/factory-ship`. Full suites once, commit, push, open the PR, CI to green. Do not merge.
 
 8. **Verify** → `/factory-verify`. Every line of the verification matrix clicked through in the real
    browser, a GIF per flow, the database cross-checked. Fails are fixed with a regression test proven

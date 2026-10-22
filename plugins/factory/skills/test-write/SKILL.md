@@ -116,7 +116,14 @@ claim of coverage, and it is worse than nothing because it stops anyone looking 
 Do this for every `MUST` and `ORDER` line at minimum. **Revert every mutation**; before you finish,
 `git status` must show only the files you intended to add or change.
 
-Then run the full suite and confirm the count moved by exactly the number of tests you added.
+Then run the suite the tests live in and confirm the count moved by exactly the number of tests you
+added. Inside a factory lane that is the lane's own test command only; the full suites run at
+integration.
+
+**A red test is not always this code's fault.** Inside a factory lane, classify each one: red against
+the code under test is a finding; red only because it reaches another lane's code that is still a
+Phase 0 stub is **deferred** — list it with the lane it waits on, leave it as written, and integration
+must show it green.
 
 ---
 

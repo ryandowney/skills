@@ -99,3 +99,16 @@ failure kept local to its lane — shipped.
   background-tab pauses, video per flow. GIFs come from ffmpeg when installed, else from step screenshots via
   `frames-to-gif.py` (Pillow). The Chrome extension stays as the fallback for repos without Playwright or
   when Playwright cannot sign in.
+
+## 2026-10-21 — v0.6.0: fewer tokens, same gates
+
+After an overnight run of four stacked PRs: ~2.7M subagent tokens per six-lane run and ~2M more per resume
+(finished lanes redid tests and reviews because their prompts embedded earlier agents' free text), every agent
+reading the whole ~1000-line plan, two PRs each building their own copy of one shared file, full suites in five
+places, strong models on mechanical steps, cross-lane-stub tests reported as blocked, and two smoke agents sharing a
+hardcoded-port helper. Changes: cache-stable prompts plus a per-lane status file (`.factory/lanes/<key>.json`,
+removed at integration) that makes every lane stage idempotent; per-lane briefs; a Shared files section and
+`foreignOwned`; full suites only at integration and before the PR; `reviewModel` / `mechanicalModel` tiers and no
+hardcoded strong model; lanes sized 2–6 to the work; opt-in `laneReviewModel` (an experiment to measure — mutations
+and the whole-diff review stay on reviewModel); deferred cross-lane failures; no hardcoded ports or shared helper
+names in parallel runs. Every quality gate is unchanged.

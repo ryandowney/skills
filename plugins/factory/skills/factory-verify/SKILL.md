@@ -64,6 +64,10 @@ only do that when the repo says so; GIFs bloat history forever).
 
 - Reuse a running stack; start one only the way the repo's `AGENTS.md` / `CLAUDE.md` says. Never stop
   services other worktrees or sessions share.
+- **Never hardcode a port or URL.** Derive `baseURL` and the API address for *this* worktree from the
+  repo's own env / port mechanism (its dev scripts, env files, per-worktree instance settings) —
+  another run may be up beside this one, and a fixed port clicks through someone else's server. Write
+  helper scripts only under this branch's evidence dir (`flows/`), never at a shared name in `/tmp`.
 - **Local stack only.** Seed, edit and query only the local development database this branch runs
   against — never a shared, staging or production database, whatever credentials are lying around.
 - Seed through the UI where the matrix exercises creation; seed through the database or API only to
@@ -156,7 +160,8 @@ For each FAIL, and each PARTIAL that is a real defect:
    passes on the old code does not cover the bug: say so instead of claiming coverage. Some bugs only
    reproduce in a real browser (router timing, focus, animation): swap the old file in the same way,
    reproduce it live, restore, and record that instead.
-3. Re-run the suites, then **re-verify that path live** and re-record its GIF.
+3. Run the tests the fix touches (not the full suites — `/factory-ship` and CI run those once), then
+   **re-verify that path live** and re-record its GIF.
 4. Inside the factory, the fixes then go through `/factory-fix` (fresh reviewers), and are pushed with
    CI re-checked, before Gate 2.
 
