@@ -34,7 +34,8 @@ Do not review from memory of the docs. Establish what is actually true:
 
 ```bash
 REPO=$(git rev-parse --show-toplevel); SLN=$(ls "$REPO"/src/*.sln | head -1)
-dotnet build "$SLN" && dotnet test "$SLN"          # count, failures, duration
+LOG="${TMPDIR:-/tmp}/system-review-$(basename "$REPO").log"   # suite output stays out of context
+dotnet build "$SLN" && dotnet test "$SLN" > "$LOG" 2>&1   # count, failures, duration — read with tail / grep
 cd apps/web && npm run check && npm run build
 ```
 

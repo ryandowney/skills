@@ -38,12 +38,16 @@ something needs a decision, not another attempt.
    line itself is wrong, that is a design question — surface it rather than quietly editing intent
    to match the code.
 
-4. **Re-test the touched areas** — the suites the fixes touch, not the full suites: those ran at
-   integration and run again in `/factory-ship` before the PR.
-   - Backend: the repo's build, then the targeted tests for the touched area (`AGENTS.md` / `CLAUDE.md`
-    say how — e.g. `dotnet test --filter "FullyQualifiedName~<area>"`).
+4. **Re-test the touched areas** — the affected tests for what the fixes changed, plus any guard
+   test whose paths they touched; never the full suites (those ran at integration, and CI's run on
+   the PR is the final one). Write test output to a log and read only the summary and failures
+   (`tail` / `grep`); hand the run to a fix agent or a cheap runner rather than reading it here.
+   - Backend: the repo's build, then the touched project's tests, filtered to the touched class
+     (e.g. `dotnet test --filter "FullyQualifiedName~<area>"`); add the test projects of projects that
+     reference it only when a public contract (request / response / DTO / interface) changed.
      Mass-Inconclusive means Docker is down — that is not a pass.
-   - Frontend: the repo's type-check and build, its unit tests, and any relevant Playwright spec.
+   - Frontend: the repo's type-check and build, `vitest related --run <changed files>`, and the
+     Playwright specs for the touched screens (`--only-changed=<base>` where supported).
    - UI findings from `/ux-review`: fix with the component or class it names, then re-render the
      screen to confirm.
 

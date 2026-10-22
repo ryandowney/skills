@@ -42,8 +42,15 @@ quality gate):
   test cases, high-risk lines, owned paths and only the house-rule passages for those paths — verbatim.
   Lane agents read the brief and open the full plan only for a section it names. Phase 0, integration
   and the whole-diff review still read the whole plan.
-- **Tests where they answer a question.** Lanes run only their own `testCmd`; the full suites run once
-  at integration and once before the PR (`/factory-ship`, then CI).
+- **Tests where they answer a question.** Agents run the tests their change can affect (the lane's
+  `testCmd` is its affected tests) plus any `guardTests` whose paths they touched. The full suites run
+  twice per feature, both scheduled by the orchestrator: once at integration (mandatory — it is where
+  the lanes meet) and once at the end, which is CI's run on the PR. Each full run goes to a cheap runner
+  that writes the output to a log and returns counts and failing test names only.
+- **Context kept small.** Test output goes to a log and is read by `tail` / `grep`; files are read by
+  section after a grep; lane reviewers see exactly their lane's diff and re-reviewers only the delta
+  since the last review; result fields are capped, with the detail in the lane status file; every
+  prompt starts with the same shared block so the prompt cache can reuse it.
 - **Model tiers.** Judgment stays on the strong tier; copying and fixed command lists go to a cheap one.
 - **Cross-lane stubs are not failures.** A lane test that is red only because another lane's code is
   still a Phase 0 shell is listed as `deferred`, not counted against the lane; integration must show it
@@ -58,7 +65,8 @@ decompose (mechanical model) + briefs (brief model) → Phase 0 contracts (1 com
    └─ lanes in parallel, each in its own worktree, each agent checking the lane's status file first:
         build (build model) → tests from contract (build model, other agent)
           → adversarial review + targeted mutation (review model) → fix (build) [→ re-review if a blocker was fixed]
-   └─ integrate: merge lanes → drop .factory/ → build → FULL suites once → real-stack smoke (review model)
+   └─ integrate: merge lanes → drop .factory/ → build (review model) → FULL suites once (runner, mechanical model)
+        → fix what they found, re-running only those tests → real-stack smoke (review model)
    └─ teardown (mechanical): remove every lane worktree + branch that is merged and clean; keep and report the rest
 ```
 
@@ -81,16 +89,19 @@ happen, and it goes when the PR merges.
 
 ## Steps
 
-1. **Pre-flight the suites once** on the feature branch before the engine starts. Anything red now is
-   the machine's, not the feature's (missing `.env` in a fresh worktree, a container down, a shared
-   queue another worktree consumes). Fix it, or record it as `knownFailures: [{ test, why }]` — never
-   list a test the feature could break.
+1. **Pre-flight is the baseline run.** The conductor's baseline (one full run on the untouched feature
+   worktree, before anything changes) doubles as the pre-flight; do not run the suites a second time.
+   Hand it to a runner — a `mechanicalModel` agent or a shell step — that writes the output to a log and
+   returns counts and failing names. Anything red now is the machine's, not the feature's (missing `.env`
+   in a fresh worktree, a container down, a shared queue another worktree consumes). Fix it, or record
+   it as `knownFailures: [{ test, why }]` — never list a test the feature could break.
 
 2. **Run the engine** and wait for its notification:
    ```
    Workflow({ scriptPath: "${CLAUDE_PLUGIN_ROOT}/skills/factory-execute/factory-workflow.mjs", args: {
      planPath, repoDir, featureBranch, baseline, knownFailures,
      buildCmds: ["<build>", "<frontend type-check>"], testCmds: ["<backend suites>", "<frontend unit>", "<e2e>"],
+     guardTests: [{ when: ["<path globs>"], cmd: "<always-run test for indirect breakage>" }],  // the plan's Guard tests
      worktreeCmd: "<the repo's worktree helper, with {path} {branch} {start}>",
      teardownCmd: "<how to remove one, with {path} {name} — default git worktree remove {path}>",
      laneSetupNote: "<per-worktree setup, e.g. copy app/.env>",
@@ -115,6 +126,11 @@ happen, and it goes when the PR merges.
    `reviewModel`. Measure before keeping it: compare the lane findings, and what the whole-diff review
    then catches that the lanes missed, against runs without it.
 
+   `testCmds` are the full suites; only the engine's integration runner runs them. `guardTests` are
+   the plan's always-run tests for breakage impact analysis misses — reflection-based handler
+   resolution, migrations and the model snapshot, DI registration, config. Any agent that touches a
+   matching path runs them, so the cheap affected-test selection never hides that kind of break.
+
    `foreignOwned` names files a sibling plan owns. Decompose stops if any lane claims one, and every
    agent builds against the owner's contract (or the stub the plan names) instead of re-implementing it.
 
@@ -123,6 +139,10 @@ happen, and it goes when the PR merges.
    that embeds it, and the cache then re-runs finished work. The one exception is `acceptedLanes`. The
    lane status files are the safety net when an arg did change: each re-asked lane agent finds its stage
    recorded and returns the result instead of redoing it.
+
+   **While it runs, watch for milestones only** — a lane done or blocked, integration, the result.
+   Do not read or relay every agent step: each one lands in your context, and on a six-lane run that
+   alone filled the orchestrator's window.
 
 3. **Record the run id** in the run manifest. Resume a failed or interrupted run with
    `resumeFromRunId` and identical args — finished agents return cached; only the failed step onward
@@ -136,27 +156,34 @@ happen, and it goes when the PR merges.
    | `decompose` (`foreign`) | a lane claims a path in `foreignOwned` | the lane map or the Shared files section is wrong: give the file to one plan only |
    | `decompose` (`briefs`) | the lane briefs were not committed | read its summary; usually an ignored `.factory/` the agent did not `add -f` |
    | `contracts` | Phase 0 could not make it build, or made no commit | read its issues; usually a plan gap |
+   | `integration` not done, `fullRun.infraDown` | the full suites never really ran (a container down, a suite that could not start) | fix the machine, then resume; the logs are at `logs` |
    | `lanes-setup` | worktrees could not be created | read its summary; usually the worktree helper or a leftover worktree |
-   | `lanes` | a lane is blocked — see each lane's `summary` and `notes` | judge it. A summary saying **a review left a mutation in the tree** means sabotaged code may be in that worktree: **inspect `git diff` there before anything else**. Otherwise fix by hand on the lane branch, commit, and resume with `acceptedLanes: ["<key>"]` added — a blocked result is cached, so a plain resume just stops again |
+   | `lanes` | a lane is blocked — see each lane's `summary`, counts and `statusFile` | judge it. A summary saying **a review left a mutation in the tree** means sabotaged code may be in that worktree: **inspect `git diff` there before anything else**. Otherwise fix by hand on the lane branch, commit, and resume with `acceptedLanes: ["<key>"]` added — a blocked result is cached, so a plain resume just stops again |
 
    A `lanes` stop keeps every lane worktree on purpose — they hold the work to judge. Teardown runs when
    the resumed run integrates. If you abandon the run instead, clean up by the same rule: for each
    `<feature worktree>-lane-*`, remove it only when `git status --porcelain` there is empty and its branch
    is merged; otherwise ask the user.
 
-   **After every run, read `teardown`**: `kept` lists what is still on disk and why; `worktreeList` should
-   show no `-lane-` entries otherwise. Record both in the run manifest.
+   **After every run, read `teardown`**: `kept` lists what is still on disk and why; `worktreeList` holds
+   only the `-lane-` entries still registered, and should be empty otherwise. Record both in the run manifest.
 
-   Every lane returns `deferred`: its tests that were red only because another lane was still a stub.
+   The result is compact on purpose: per lane, status, branch, counts (findings, mutations killed and
+   survived, `deferred`, `notes`) and a `statusFile` path; for integration, the full run's counts and
+   log paths. Paths start with `${TMPDIR:-/tmp}` — expand them in a shell. The detail is in the status
+   files (copied out of the repo at integration; in the lane worktree for a lane that stopped), read
+   with `jq` or by section, never all at once.
+
+   `deferred` counts a lane's tests that were red only because another lane was still a stub.
    Integration ran them green or fixed them; check its result says so.
 
-   Every lane returns `notes`: contract ambiguities the builder resolved and findings the fixer
-   disputed. Write them into the run manifest's dispositions ledger so `/factory-fix` honours them
-   instead of re-litigating, and treat any builder note that changes a contract as a question for the
-   user.
+   `notes` counts contract ambiguities the builder resolved and findings the fixer disputed — the
+   `issues` of the `build` and `fix-*` stages in the status file. Write them into the run manifest's
+   dispositions ledger so `/factory-fix` honours them instead of re-litigating, and treat any builder
+   note that changes a contract as a question for the user.
 
-   When `green: true`, spot-check: run the touched test classes yourself (not the full suites — integration
-   just ran them), and compare the suite counts with the baseline. `git ls-files .factory` on the feature
+   When `green: true`, spot-check without running suites in your own context: compare the integration
+   counts with the baseline (a runner ran them; the logs are at `logs`). `git ls-files .factory` on the feature
    branch prints nothing. A suite that grew by fewer tests than the contracts owe means a lane skipped
    cases.
 
@@ -165,7 +192,7 @@ happen, and it goes when the PR merges.
 
 ## Output
 
-Per-lane status and findings, the mutation table (line · killed), the integration test counts against
+Per-lane status and finding counts, the mutation counts (killed · survived; the lines are in the status files), the integration test counts against
 the baseline, the smoke results, and which contract lines are covered and which are not. If not
 green, say exactly what is red and hand the decision back — **do not loop blindly**.
 

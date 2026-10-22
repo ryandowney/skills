@@ -25,7 +25,9 @@ The most important outputs are not the file list:
 1. **Plan path.** Keep plans in the repo's `docs/plans/<slug>-plan.md` when the repo keeps plans
    (check `AGENTS.md` / `CLAUDE.md`), else `<scratchpad>/factory/plan-<slug>.md`.
 
-2. **Test baseline first.** Run the suites before anything changes; record counts and known failures.
+2. **Test baseline first.** One full run before anything changes, handed to a runner (a cheap agent
+   or a shell step that logs the output and returns counts and failing names); record counts and known
+   failures. Inside the factory the conductor's baseline is this run — do not repeat it.
    Mass-Inconclusive or mass-skipped DB tests mean Docker is down — not a pass.
 
 3. **Spawn the planner** on the strongest model at high effort (`Agent`, general-purpose). It reads
@@ -65,7 +67,9 @@ The most important outputs are not the file list:
    - **Lane map.** Lanes that can be built in parallel once Phase 0 exists — typically one per layer
      group (data access; use cases + validation; API; frontend data; frontend UI). For each: a key,
      the **path prefixes it alone owns** (disjoint — the build engine refuses overlaps), how it mocks
-     the layer below, its test cases, the command that runs just its tests, and its **high-risk
+     the layer below, its test cases, its **affected-test command** (the narrowest selection that covers
+     its paths: its test projects or classes, `vitest related <its paths>`, and the e2e specs it owns —
+     never a full suite), and its **high-risk
      lines** (auth, tenancy, money, data loss, dates and time zones) that the reviewer will
      mutation-test. Lanes run their DB-backed tests at the same time: say how the test projects keep
      databases isolated (per-test containers, per-lane database names), or serialise those lanes.
@@ -87,6 +91,12 @@ The most important outputs are not the file list:
      owned by another plan is passed to `/factory-execute` as `foreignOwned`; its decompose step stops
      if a lane claims one. Two plans each building and hardening their own copy of one shared file is
      exactly what this prevents.
+   - **Guard tests** — the repo's always-run tests for breakage that impact analysis misses because
+     nothing imports the changed file directly: reflection- or convention-based handler resolution,
+     the migration registry and model snapshot, DI registration, config binding, architecture/layer
+     rule tests. List each as `{ when: [path globs], cmd }` (e.g. migrations folder → the migration
+     tests); they are passed to `/factory-execute` as `guardTests` and run whenever a lane or fix
+     touches a matching path. Grep the test projects for them; say none if the repo has none.
    - **Integration smoke** — the real-stack steps run after the lanes merge (each endpoint through the
      real API, the migration applied).
    - **Verification matrix** — numbered user paths with their expected outcomes, each tagged with its
@@ -118,7 +128,7 @@ The most important outputs are not the file list:
 
 The plan path, a 5–8 line summary, the migration chosen, **the handler contracts in full**, the lane
 map (with the reason for its lane count), the Shared files section and its `foreignOwned` list when
-there is one, the verification matrix line count (and the lines themselves on request), the UI triage verdict
+there is one, the guard tests, the verification matrix line count (and the lines themselves on request), the UI triage verdict
 and design path, and every assumption made where the spec was silent.
 
 This is **Gate 1**: the caller gets the user's approval before `/factory-execute`. The contracts and

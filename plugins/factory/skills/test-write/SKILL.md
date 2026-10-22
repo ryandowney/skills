@@ -117,8 +117,8 @@ Do this for every `MUST` and `ORDER` line at minimum. **Revert every mutation**;
 `git status` must show only the files you intended to add or change.
 
 Then run the suite the tests live in and confirm the count moved by exactly the number of tests you
-added. Inside a factory lane that is the lane's own test command only; the full suites run at
-integration.
+added. Inside a factory lane that is the lane's affected-test command only; the full suites run at
+integration. Send the output to a log and read the summary and failures with `tail` / `grep`.
 
 **A red test is not always this code's fault.** Inside a factory lane, classify each one: red against
 the code under test is a finding; red only because it reaches another lane's code that is still a

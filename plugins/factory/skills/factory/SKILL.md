@@ -18,13 +18,25 @@ worktree commands come from `AGENTS.md` / `CLAUDE.md`; when they disagree with a
 **Models:** planning, Phase 0 contracts, every review, integration and orchestration → the session
 model (no stage names a stronger one unless the caller passes it). Building, test writing and fixes →
 **Sonnet**. Mechanical steps — extracting the lane map, writing lane briefs, creating and tearing down
-worktrees, watching CI — → **Haiku** at low effort: they copy text or run a fixed command list, and
+worktrees, running the full suites, watching CI — → **Haiku** at low effort: they copy text or run a fixed command list, and
 judgment spent there buys nothing. `/factory-execute` exposes each tier as an arg.
 
 **Tokens:** spend them where they find defects. Every agent reads only what its job needs (lane
-agents read a per-lane brief, not the whole plan); full suites run twice per feature — at integration
-and before the PR — and targeted tests everywhere else; a resume replays finished work from cache.
-None of this relaxes a gate below.
+agents read a per-lane brief, not the whole plan, and every agent reads files by section after a
+grep); a resume replays finished work from cache. None of this relaxes a gate below.
+
+**Test runs are the conductor's call.** Agents write tests and run the *affected* tests as they go
+(plus the plan's guard tests on a matching path). The full suites run twice per feature: **once at
+integration** (mandatory — it is where the lanes meet; `/factory-execute` does it) and **once at the
+end**, after every review, stress and verify fix — CI's full run on the PR is that run; run it locally
+only when the repo has no CI or CI cannot run a suite. Fix rounds in between run affected tests only.
+The conductor decides when a full run happens and acts on its result, but **never runs a suite in its
+own context**: it hands the run to a runner (a `mechanicalModel` agent or a shell step) that writes the
+output to a log and returns counts, failing test names and the log path.
+
+**Watch for milestones, not steps.** While a workflow or CI runs, surface only lane done / blocked,
+integration, the PR, CI green or red. Every relayed step lands in this context; on a six-lane run the
+per-step events alone filled the window.
 
 ---
 
@@ -46,7 +58,8 @@ State the route and the one-line reason in the run manifest. Between `single-uni
 
 ## Pipeline (`full`)
 
-1. **Baseline.** Run the suites before anything changes; record counts and known failures.
+1. **Baseline.** One full run before anything changes, by a runner (never in this context); record
+   counts and known failures. It is also `/factory-execute`'s pre-flight — do not run it twice.
    Mass-Inconclusive or mass-skipped DB tests mean Docker is down — fix that first; it is not a baseline.
 
 2. **Plan** → `/factory-plan`. It returns the plan with the decisions block, contracts, Phase 0 file
@@ -82,12 +95,14 @@ State the route and the one-line reason in the run manifest. Between `single-uni
    per-run folder named for the branch, never at a shared name. They report; they do not fix. Confirmed in-scope bugs are fixed with a regression
    test, then **back through `/factory-fix`** so fresh reviewers see the fixes; the rest are reported.
 
-7. **Ship** → `/factory-ship`. Full suites once, commit, push, open the PR, CI to green. Do not merge.
+7. **Ship** → `/factory-ship`. Commit, push, open the PR, CI to green. Do not merge. No local full run
+   here when CI runs the suites.
 
 8. **Verify** → `/factory-verify`. Every line of the verification matrix clicked through in the real
    browser, a GIF per flow, the database cross-checked. Fails are fixed with a regression test proven
    to fail on the old code and re-verified live; then the conductor runs `/factory-fix` over those
-   fixes (fresh reviewers), pushes, and re-checks CI. The evidence
+   fixes (fresh reviewers), pushes, and re-checks CI. **CI's run on that last push is the feature's
+   final full run**; with no CI (or a suite CI cannot run), hand that run to a runner now. The evidence
    goes to the per-branch evidence folder and is posted to the PR and the issue, as the repo's rules
    allow.
 

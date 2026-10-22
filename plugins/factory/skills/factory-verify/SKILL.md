@@ -160,7 +160,8 @@ For each FAIL, and each PARTIAL that is a real defect:
    passes on the old code does not cover the bug: say so instead of claiming coverage. Some bugs only
    reproduce in a real browser (router timing, focus, animation): swap the old file in the same way,
    reproduce it live, restore, and record that instead.
-3. Run the tests the fix touches (not the full suites — `/factory-ship` and CI run those once), then
+3. Run the tests the fix touches, output to a log read by `tail` / `grep` (not the full suites — CI's
+   run on the pushed fix is the final one), then
    **re-verify that path live** and re-record its GIF.
 4. Inside the factory, the fixes then go through `/factory-fix` (fresh reviewers), and are pushed with
    CI re-checked, before Gate 2.

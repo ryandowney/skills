@@ -107,6 +107,9 @@ coverage.
 # 3. revert immediately
 ```
 
+Send each run's output to a log and read only the result lines (`tail` / `grep`): a mutation pass runs
+the tests many times, and their output is the fastest way to fill a context.
+
 - **Test fails** → coverage is real. Move on; this needs no comment in the report.
 - **Test still passes** → the coverage is fiction. **Finding**, phrased so anyone can re-run it:
   *"deleted `RequireHumanAdmin` in `ApiCredentialCreateValidationHandler`; `ApiCredentialTests`

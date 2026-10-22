@@ -112,3 +112,12 @@ removed at integration) that makes every lane stage idempotent; per-lane briefs;
 hardcoded strong model; lanes sized 2–6 to the work; opt-in `laneReviewModel` (an experiment to measure — mutations
 and the whole-diff review stay on reviewModel); deferred cross-lane failures; no hardcoded ports or shared helper
 names in parallel runs. Every quality gate is unchanged.
+
+Same version, extended before release (RD's direction): the orchestrator owns test runs. Agents run affected tests
+only (stack-aware selection, plus `guardTests` for indirect breakage); the full suites run once at integration
+(mandatory) and once at the end, which is CI's run on the PR; each full run goes to a cheap runner that logs the
+output and returns counts and failing names. Context savings: suite output read by tail / grep, files read by section,
+lane reviewers given exactly their lane diff and re-reviewers only the delta, capped result fields with the detail in
+the status files, a compact workflow result, one shared prompt prefix, and milestone-only watching. Evidence: suites
+ran 5–6 times per PR; lane results of 30–60 KB reached the orchestrator and the workflow result was truncated at
+~60 KB; per-step monitor events filled the orchestrator's window.
