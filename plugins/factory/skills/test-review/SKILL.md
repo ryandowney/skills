@@ -50,8 +50,11 @@ Build the matrix of **contract lines × tests**. Every cell is one of four findi
 
 ### 2.1 Contract line → no test  (**the main event**)
 
-Each `MUST`, `EDGE`, `ORDER` and `NEVER` line needs at least one test that would fail if that line
-were violated. Walk them one at a time.
+Each `MUST`, `EDGE`, `ORDER` and `NEVER` line needs at least one test, at **some** level (unit,
+integration at a merge stage, or e2e — the plan's test budget says which), that would fail if that line
+were violated. Walk them one at a time. One good test per line is the bar; a mechanical
+positive+negative pair for every line at every level is not, and is itself a finding when it bloats the
+suite past the plan's budget (should-fix, or nit when small).
 
 `EDGE` and `ORDER` are where real suites are thin, so give them disproportionate attention:
 
@@ -71,6 +74,10 @@ A test asserting something the contract never claimed. Usually one of:
 
 - **Implementation trivia** — asserting the private shape of something, so the test breaks on every
   refactor and proves nothing about behaviour. Should-fix.
+- **Tautological / implementation-mirroring** — asserting a mock received exactly what the code
+  passes it, or computing the expected value with the same formula as the code. It cannot fail when
+  the logic is wrong and survives mutation for the wrong reason. Should-fix; blocker on a permission,
+  tenancy, money or data-loss path.
 - **Real undeclared behaviour** — the handler genuinely does this and the contract omits it. The fix
   is a contract line, not deleting the test. Worth surfacing, because undeclared behaviour is how
   scope creep enters unnoticed.
@@ -107,6 +114,9 @@ coverage.
 # 3. revert immediately
 ```
 
+Send each run's output to a log and read only the result lines (`tail` / `grep`): a mutation pass runs
+the tests many times, and their output is the fastest way to fill a context.
+
 - **Test fails** → coverage is real. Move on; this needs no comment in the report.
 - **Test still passes** → the coverage is fiction. **Finding**, phrased so anyone can re-run it:
   *"deleted `RequireHumanAdmin` in `ApiCredentialCreateValidationHandler`; `ApiCredentialTests`
@@ -130,6 +140,8 @@ Choose mutations that correspond to **real mistakes**, and derive them from the 
 **Budget.** Mutation is the expensive part. Spend it where being wrong is expensive: permissions,
 money, data loss, tenancy, authentication. Then whatever the plan flagged as risky. Then boundaries
 and error paths. A getter needs no mutation, and mutating it burns budget that belonged to the gate.
+This targeted pass, not the number of tests, is how the suite's quality is judged: a large suite with
+surviving mutations on its gates is worse than a small one that kills them all.
 
 **State what you did not do.** If you mutated 6 of 14 covered lines, say so and name the 8 you left.
 A review that implies total coverage while sampling commits the exact sin it exists to catch.
@@ -148,8 +160,14 @@ only assertion; a `try`/`catch` that swallows the failure; asserting on a mock i
 **FK-honest seeds.** Real parent rows, not fabricated GUIDs. A seed that could not exist in the real
 schema produces a test that passes against a database that could never exist.
 
-**Real Postgres** (rule 6). A mocked repository tests the mock. Mass-Inconclusive means **Docker is
-down and the run is not a pass** — say so loudly rather than reporting green.
+**Data access against a real store.** A mocked repository in a data-access test tests the mock. Upper
+layers may unit-test against a mock of the layer below, but a permission, tenancy or money rule proven
+only against a mock needs an integration test at its merge stage too. Mass-Inconclusive means **Docker
+is down and the run is not a pass** — say so loudly rather than reporting green.
+
+**Dense logic without generated input.** A parser, sanitiser or rule tested only with a few hand-picked
+examples, where a property or fuzz test over hostile sizes and shapes would find recursion-depth and
+quadratic-blow-up bugs, is a should-fix.
 
 **Negative cases exist and bite.** A rule tested only where it permits is untested.
 
@@ -190,8 +208,9 @@ Severity means something specific here:
 - **blocker** — a mutation survived on a permission, tenancy, money or data-loss path; or such a
   path has no test at all; or a handler in the diff has no contract. The suite asserts something
   untrue about safety.
-- **should-fix** — a mutation survived elsewhere; a `MUST`/`ORDER` line is uncovered; a security
-  test enters through the wrong path; a test asserts implementation trivia.
+- **should-fix** — a mutation survived elsewhere; a `MUST`/`ORDER` line is uncovered at every level;
+  a security test enters through the wrong path; a test asserts implementation trivia or mirrors the
+  implementation; mechanical cases well past the plan's test budget.
 - **nit** — naming, duplication, an uncovered `EDGE` with no real consequence.
 
 End with one verdict line: **PASS** or **CHANGES REQUESTED**. That line is what `/factory-fix` and

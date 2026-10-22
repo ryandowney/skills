@@ -99,3 +99,38 @@ failure kept local to its lane — shipped.
   background-tab pauses, video per flow. GIFs come from ffmpeg when installed, else from step screenshots via
   `frames-to-gif.py` (Pillow). The Chrome extension stays as the fallback for repos without Playwright or
   when Playwright cannot sign in.
+
+## 2026-10-21 — v0.6.0: fewer tokens, same gates
+
+After an overnight run of four stacked PRs: ~2.7M subagent tokens per six-lane run and ~2M more per resume
+(finished lanes redid tests and reviews because their prompts embedded earlier agents' free text), every agent
+reading the whole ~1000-line plan, two PRs each building their own copy of one shared file, full suites in five
+places, strong models on mechanical steps, cross-lane-stub tests reported as blocked, and two smoke agents sharing a
+hardcoded-port helper. Changes: cache-stable prompts plus a per-lane status file (`.factory/lanes/<key>.json`,
+removed at integration) that makes every lane stage idempotent; per-lane briefs; a Shared files section and
+`foreignOwned`; full suites only at integration and before the PR; `reviewModel` / `mechanicalModel` tiers and no
+hardcoded strong model; lanes sized 2–6 to the work; opt-in `laneReviewModel` (an experiment to measure — mutations
+and the whole-diff review stay on reviewModel); deferred cross-lane failures; no hardcoded ports or shared helper
+names in parallel runs. Every quality gate is unchanged.
+
+Same version, extended before release (RD's direction): the orchestrator owns test runs. Agents run affected tests
+only (stack-aware selection, plus `guardTests` for indirect breakage); the full suites run once at integration
+(mandatory) and once at the end, which is CI's run on the PR; each full run goes to a cheap runner that logs the
+output and returns counts and failing names. Context savings: suite output read by tail / grep, files read by section,
+lane reviewers given exactly their lane diff and re-reviewers only the delta, capped result fields with the detail in
+the status files, a compact workflow result, one shared prompt prefix, and milestone-only watching. Evidence: suites
+ran 5–6 times per PR; lane results of 30–60 KB reached the orchestrator and the workflow result was truncated at
+~60 KB; per-step monitor events filled the orchestrator's window.
+
+Same version, extended again before release (RD's direction): layered integration with a test budget. Evidence: the
+most serious bugs came from adversarial review (a sanitiser stack overflow, a quadratic memory blow-up on crafted
+HTML, rows lost on redelivery, throttled calls dead-lettering mail, messages lost when moved, a lost-update race) and
+from real-stack smoke and stress (older outbound marking a thread read, an editor crash on close, a missing blob
+returning 500, Back discarding a draft); independent contract tests found real but smaller defects; mutation found
+missing tests, not bugs; each PR added ~500 mostly mechanical tests; lanes needing another lane's real code were
+blocked by stubs. Changes: lanes write unit tests against mocks of the layer below; integration merges bottom-up one
+declared stage at a time and runs that stage's integration tests (cheap runner), fixing at the failing stage before
+moving up; optional `laneMergeIn` for long-running upper lanes; a per-lane test budget from the plan replaces the
+pair-per-MUST rule (property / fuzz where logic is dense, mutation as the quality bar); every lane review reasons
+through failure modes; smoke and stress are mandatory for queues, external APIs and user-facing flows; PRs run
+affected tests in CI, full suites on merge and nightly.

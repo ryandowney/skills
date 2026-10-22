@@ -1,5 +1,5 @@
 {
   "name": "factory",
   "description": "Software-factory suite: /factory conducts plan (with UI triage + UX design) → contracts as code → parallel lanes → integration → review/fix → PR → browser verification with GIF evidence; routes for bug fixes too. Plus standalone test-review, test-write, ux-review, system-review and architecture-review. Two human gates: approve the plan; review and merge.",
-  "version": "0.5.0"
+  "version": "0.6.0"
 }

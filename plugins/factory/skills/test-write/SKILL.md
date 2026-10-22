@@ -1,6 +1,6 @@
 ---
 name: test-write
-description: Write tests for a handler from its CONTRACT block rather than from its implementation — derive the case list from the stated intent first, then read the code only to learn how to invoke it. Produces handler-specific tests covering every MUST, EDGE, ORDER and NEVER line, entering through the same path production takes. Use when adding tests to new or existing handlers, or as the factory's test stage.
+description: Write tests for a handler from its CONTRACT block rather than from its implementation — derive the case list from the stated intent first, then read the code only to learn how to invoke it. Produces tests within the plan's test budget — one test per MUST, EDGE, ORDER and NEVER line at the cheapest level that can see it, property or fuzz tests where logic is dense, entering through the same path production takes. Use when adding tests to new or existing handlers, or as the factory's test stage.
 ---
 
 # test-write — tests derived from intent, not from code
@@ -37,13 +37,29 @@ tests that could catch a mistake".
 
 ## 2. Derive the case list — before opening the handler
 
-One line at a time, mechanically:
+**Work to the budget.** Inside the factory the plan gives each lane a test budget; standalone, set one
+before writing. Tests cost run time on every CI run for the life of the code, and a suite of
+mechanical positive+negative pairs for every contract line at every level (one overnight run added
+~500 per PR) slows CI and catches little. Spend tests where they catch defects:
 
-| Line | Cases it owes |
+- **Unit tests only where logic is dense** — rules, parsers and sanitisers, validation, mappers, date
+  and money maths — mocking the layer below through its contract. **Prefer property-based or fuzz
+  tests there** (the repo's library if it has one): one property over generated input, including
+  hostile sizes and shapes (deep nesting, huge or crafted payloads), beats a dozen hand-picked
+  examples, and is what finds stack overflows and quadratic blow-ups.
+- **Integration tests at the boundaries that matter** — data access against a real store; per use
+  case, one happy path plus the important edges through the real layers. Not every contract line
+  at every level.
+- **End-to-end only for the user journeys** the plan's verification matrix names.
+
+Then, one contract line at a time: each line owes **one** test that fails if the line is broken, at the
+cheapest level the budget assigns that can see it:
+
+| Line | The test it owes |
 |---|---|
-| `MUST <do X>` | The positive case, **and** the negative: it does not happen when it should not |
-| `MUST refuse <Y>` | A refusal case asserting **which** error, plus a case that is correctly allowed |
-| `EDGE <Z>` | One case for exactly that input, asserting the defined answer |
+| `MUST <do X>` | It happens; add the negative only where "it does not happen when it should not" is a real risk |
+| `MUST refuse <Y>` | A refusal case asserting **which** error |
+| `EDGE <Z>` | One case for exactly that input, asserting the defined answer (or a property covering it) |
 | `ORDER a before b` | A case where **both** would fail, asserting it stops at `a` |
 | `NEVER <leak>` | A case asserting **absence** — the field is missing, the row is not written |
 
@@ -58,8 +74,8 @@ must assert the caller learned nothing, not merely that a call failed.
 later. `NEVER returns the raw token on a read` is a real test, and it is the one that fails the day
 somebody adds the field to a DTO for debugging.
 
-Write the list out before touching the code. If a contract line yields no obvious case, that is a
-signal the line is vague — fix the contract.
+Write the list out before touching the code, with each case's level. If a contract line yields no
+obvious case, that is a signal the line is vague — fix the contract.
 
 ---
 
@@ -86,8 +102,14 @@ or data loss, **call `Validate()`**.
 **Seeds are FK-honest.** Insert real parent rows. Fabricated GUIDs give you a green test against an
 impossible database.
 
-**Real Postgres** (rule 6). No mocked repositories, no in-memory provider. Mass-Inconclusive means
-Docker is down and the run is **not** a pass.
+**Data access against the real store** the repo uses (a real database in a container, not an
+in-memory provider). Upper-layer unit tests mock the layer below through its contract; the repo's own
+rules win where they forbid that — then those tests are integration tests at a merge stage.
+Mass-Inconclusive means Docker is down and the run is **not** a pass.
+
+**Never mirror the implementation.** A test that asserts a mock was called with exactly what the code
+passes it, or recomputes the expected value with the same formula, cannot fail when the logic is
+wrong. Assert the outcome the contract states.
 
 **Assert the specific thing.** The error code and the field, not merely "there was an error". A test
 asserting *some* failure passes when the handler fails for the wrong reason — which is precisely the
@@ -113,10 +135,18 @@ code it covers and confirm it goes red.**
 A test that stays green while the thing it covers is sabotaged is not a weak test — it is a false
 claim of coverage, and it is worse than nothing because it stops anyone looking again.
 
-Do this for every `MUST` and `ORDER` line at minimum. **Revert every mutation**; before you finish,
+Do this for the high-risk lines (permission, tenancy, money, data loss, dates) and the dense logic
+at minimum — mutation, not the count of tests, is the quality bar. **Revert every mutation**; before you finish,
 `git status` must show only the files you intended to add or change.
 
-Then run the full suite and confirm the count moved by exactly the number of tests you added.
+Then run the suite the tests live in and confirm the count moved by exactly the number of tests you
+added. Inside a factory lane that is the lane's affected-test command only; the full suites run at
+integration. Send the output to a log and read the summary and failures with `tail` / `grep`.
+
+**A red test is not always this code's fault.** Inside a factory lane, classify each one: red against
+the code under test is a finding; red only because it reaches another lane's code that is still a
+Phase 0 stub is **deferred** — list it with the lane it waits on, leave it as written, and integration
+must show it green.
 
 ---
 
@@ -125,7 +155,7 @@ Then run the full suite and confirm the count moved by exactly the number of tes
 - Contract lines → the test now covering each, and any line still uncovered with the reason
 - Which tests you falsified, and which mutation each survived
 - Anything the contract left ambiguous, phrased as a question for a human
-- The suite count before and after
+- The suite count before and after, against the budget
 
 If you had to write the contract yourself, **say where the intent came from** — and say plainly if
 the only source was the implementation.

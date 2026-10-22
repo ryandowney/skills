@@ -22,7 +22,9 @@ something needs a decision, not another attempt.
 3. **Fix** every confirmed **blocker** and **should-fix** (skip nits unless trivial):
 
    - Small set → edit directly. Large and independent → parallel Sonnet fix agents, one per finding
-     or per file, each given the finding, the fix, and the house rules.
+     or per file, each given the finding, the fix, and only the house-rule passages for that file.
+     Reviewers in step 1 run on the review tier (`reviewModel` when the caller set one, else the
+     session model) — never a cheaper one.
    - **Decide the fixes yourself.** Hand agents exact resolutions; do not delegate design.
    - **Only fix what this diff owns.** A finding that turns out to be pre-existing gets dropped, not
      fixed — fixing it widens the diff and muddies the change.
@@ -32,15 +34,21 @@ something needs a decision, not another attempt.
    **Test findings are fixed by writing tests, never by weakening them.** A survived mutation means
    the test could not fail; the fix is a test that *can*, via `/test-write` from the handler's
    contract. Deleting the assertion, loosening it, or adding `[Ignore]` is not a fix — it is the
-   defect with the evidence removed. If a `MUST` line has no test, write the test; if the contract
+   defect with the evidence removed. If a contract line has no test at any level, write one at the
+   level the plan's test budget assigns (not a mechanical pair at every level); if the contract
    line itself is wrong, that is a design question — surface it rather than quietly editing intent
    to match the code.
 
-4. **Re-test the touched areas.**
-   - Backend: the repo's build, then the targeted tests for the touched area (`AGENTS.md` / `CLAUDE.md`
-    say how — e.g. `dotnet test --filter "FullyQualifiedName~<area>"`).
+4. **Re-test the touched areas** — the affected tests for what the fixes changed, plus any guard
+   test whose paths they touched; never the full suites (those ran at integration, and CI's run on
+   the PR is the final one). Write test output to a log and read only the summary and failures
+   (`tail` / `grep`); hand the run to a fix agent or a cheap runner rather than reading it here.
+   - Backend: the repo's build, then the touched project's tests, filtered to the touched class
+     (e.g. `dotnet test --filter "FullyQualifiedName~<area>"`); add the test projects of projects that
+     reference it only when a public contract (request / response / DTO / interface) changed.
      Mass-Inconclusive means Docker is down — that is not a pass.
-   - Frontend: the repo's type-check and build, its unit tests, and any relevant Playwright spec.
+   - Frontend: the repo's type-check and build, `vitest related --run <changed files>`, and the
+     Playwright specs for the touched screens (`--only-changed=<base>` where supported).
    - UI findings from `/ux-review`: fix with the component or class it names, then re-render the
      screen to confirm.
 

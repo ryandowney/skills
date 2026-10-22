@@ -48,7 +48,11 @@ findings before §3 — consolidation happens there, in this orchestrator, never
    effort hunting real bugs in the diff: concrete failure scenarios only, verified against the code,
    with `file:line` and severity. Point it at the feature's risky seams explicitly rather than
    letting it wander, and hand it the plan path — correctness against stated intent, not just
-   against plausibility.
+   against plausibility. It always reasons through **failure modes** for every write, message and
+   external call: the same message delivered twice, retries and throttling (429) from a dependency,
+   concurrent writers (lost update), hostile input size and shape (recursion depth, quadratic time or
+   memory on crafted input), a crash between two writes that must both happen, and upstream data
+   moved or deleted underneath it. These found the most serious bugs in practice.
 
 2. **Architecture.** `/architecture-review` — the 14 numbered `AGENTS.md`/`CLAUDE.md` rules plus the unnumbered
    ones. Skip re-deriving what `LayerRuleTests`, `HandlerResolutionTests`, `MigrationRegistryTests`

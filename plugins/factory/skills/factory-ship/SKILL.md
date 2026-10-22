@@ -19,6 +19,14 @@ instead of opening one, and say so rather than silently following this skill's d
 
 ## Steps
 
+0. **No local full run when CI runs the suites.** The feature's final full run is CI's, on the PR
+   (the first was at integration); `/factory-fix` and `/factory-verify` ran only what they touched.
+   Run locally only the suites CI cannot run, or all of them when the repo has no CI — and then hand
+   the run to a runner (a Haiku agent or a shell step that writes the output to a log and returns
+   counts and failing names), never in this context. Anything red stops the ship. Check
+   `git ls-files .factory` prints nothing — the factory's lane scaffolding never ships; if it is
+   there, `git rm -r .factory` and commit.
+
 1. **Commit** on the feature branch. End the message with the trailer lines this session requires
    (the system tells you which; use them verbatim). No issue identifier anywhere the repo forbids it.
 
@@ -32,8 +40,17 @@ instead of opening one, and say so rather than silently following this skill's d
    matrix and GIFs once it runs, and the
    `🤖 Generated with [Claude Code](https://claude.com/claude-code)` trailer.
 
-3. **Babysit until merge-ready.** Poll `gh pr checks` until green. On failure, read the logs, fix on
-   the branch, push, re-poll. If the repo has no CI checks configured, **say that explicitly in the
+3. **Babysit until merge-ready.** Poll `gh pr checks` until green — hand the polling to a cheap
+   subagent (Haiku, low effort) that reports only the final state and the failing job names, so the
+   wait costs nothing; read the failing job's log by `grep` / `tail` (`gh run view --log-failed`
+   piped to a file), not whole, and decide fixes yourself. On failure, fix on the branch, run the
+   affected tests, push, re-poll — CI's next run is the full one.
+
+   **CI speed.** PR pushes should run the affected tests (the selection agents use: changed projects
+   and their contract dependents, `vitest related`, Playwright `--only-changed`); the full suites run on
+   merge to the integration branch and nightly. Don't rerun the whole e2e suite on every push to a
+   stacked branch. If CI runs everything on every push, ship anyway and note it in the handoff as a
+   speed-up the repo could take. If the repo has no CI checks configured, **say that explicitly in the
    handoff** rather than polling forever.
 
 ## Output
