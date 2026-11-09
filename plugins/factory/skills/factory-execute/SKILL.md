@@ -177,9 +177,12 @@ happen, and it goes when the PR merges.
 
    **Keep the args in a file** in the scratchpad (`<scratchpad>/factory/<slug>-workflow-args.json`,
    never in the repo) and pass the same object on every resume. Changing any arg changes every prompt
-   that embeds it, and the cache then re-runs finished work. The one exception is `acceptedLanes`. The
-   lane status files are the safety net when an arg did change: each re-asked lane agent finds its stage
-   recorded and returns the result instead of redoing it.
+   that embeds it, and the cache then re-runs finished work. The two exceptions are `acceptedLanes` and
+   `retryStages` (`{ "<stage key>" | "full": attempt }`): a stage's test result is cached by prompt, so
+   after a machine fix or a hand commit a plain resume replays the old verdict; the attempt number
+   changes only that stage's runner prompt. The lane status files are the safety net when another arg
+   did change: each re-asked lane agent finds its stage recorded and returns the result instead of
+   redoing it.
 
    **While it runs, watch for milestones only** — a lane done or blocked, integration, the result.
    Do not read or relay every agent step: each one lands in your context, and on a six-lane run that
@@ -198,8 +201,8 @@ happen, and it goes when the PR merges.
    | `decompose` (`briefs`) | the lane briefs were not committed | read its summary; usually an ignored `.factory/` the agent did not `add -f` |
    | `decompose` (`stageErr` / `mergeErr`) | a lane is in no integration stage or in two, or `laneMergeIn` names an unknown lane, a later-stage lane or a cycle | fix the plan's Integration stages or lane map |
    | `contracts` | Phase 0 could not make it build, or made no commit | read its issues; usually a plan gap |
-   | `integration` (`stage`) | that stage stayed red after `maxStageFixRounds`, its merge failed, or its tests could not run (`infraDown`) | nothing above it was merged. Read `stages` (counts, failing names, log glob) and judge it at that layer; fix on the feature branch and resume. Lanes above it are kept by teardown, unmerged |
-   | `integration` not done, `fullRun.infraDown` | the full suites never really ran (a container down, a suite that could not start) | fix the machine, then resume; the logs are at `logs` |
+   | `integration` (`stage`) | that stage stayed red after `maxStageFixRounds`, its merge failed, or its tests could not run (`infraDown`) | nothing above it was merged. Read `stages` (counts, failing names, log glob) and judge it at that layer; fix on the feature branch (or the machine) and resume with `retryStages: { "<stage>": 1 }` — without it the cached verdict replays. Lanes above it are kept by teardown, unmerged |
+   | `integration` not done, `fullRun.infraDown` | the full suites never really ran (a container down, a suite that could not start) | fix the machine, then resume with `retryStages: { "full": 1 }`; the logs are at `logs` |
    | `lanes-setup` | worktrees could not be created | read its summary; usually the worktree helper or a leftover worktree |
    | `lanes` | a lane is blocked — see each lane's `summary`, counts and `statusFile` | judge it. A summary saying **a review left a mutation in the tree** means sabotaged code may be in that worktree: **inspect `git diff` there before anything else**. Otherwise fix by hand on the lane branch, commit, and resume with `acceptedLanes: ["<key>"]` added — a blocked result is cached, so a plain resume just stops again |
 

@@ -67,8 +67,13 @@ export const meta = {
 //   maxStageFixRounds: fix → re-run rounds per integration stage before the run stops at that stage (default 2)
 //   acceptedLanes:  optional [laneKey] — lanes the coordinator fixed BY HAND on the lane branch after a stop. On resume they
 //                   count as done and integration runs. This arg is not embedded in any prompt, so adding it keeps the cache.
+//   retryStages:    optional { <stageKey> | "full": attempt } — re-run that stage's integration tests (or the full suites)
+//                   on resume after the coordinator fixed the MACHINE (an `infraDown` stop) or committed a fix by hand on
+//                   the feature branch. A stopped stage's result is cached by prompt, so a plain resume replays it; the
+//                   attempt number is embedded ONLY in that stage's runner prompts, so every other cached result stays.
+//                   Raise the number again for a further re-run.
 // }
-// Keep resume args IDENTICAL between a run and its resume (acceptedLanes excepted): changing any other arg changes
+// Keep resume args IDENTICAL between a run and its resume (acceptedLanes and retryStages excepted): changing any other arg changes
 // every prompt that embeds it, and the cache then re-runs finished work. When that happens anyway, each lane agent
 // finds its stage already recorded in the lane's status file and returns the recorded result instead of redoing it.
 const A = typeof args === 'string' ? JSON.parse(args) : (args || {})
@@ -712,8 +717,10 @@ Run no tests: a runner runs this stage's integration tests next. Return the sha.
     continue
   }
   // The cheap runner (item 11) runs the stage's tests; the stage fixer reads its counts, never the output.
+  // `attempt` is the coordinator's retryStages counter: it changes this prompt (and so its cache key) after a machine fix.
+  const attempt = (A.retryStages || {})[s.key] || 0
   const run = n => agent(`${SHARED}
-YOUR JOB: you are the suite runner for integration stage "${s.key}" (run ${n}), in ${repoDir} on ${featureBranch}. You
+YOUR JOB: you are the suite runner for integration stage "${s.key}" (run ${n}${attempt ? `, attempt ${attempt}` : ''}), in ${repoDir} on ${featureBranch}. You
 judge nothing and fix nothing. mkdir -p ${RUN_DIR}/logs, then run each command in order as
 \`<cmd> > ${RUN_DIR}/logs/stage-${s.key}-r${n}-<i>.log 2>&1\` (i = its number below):
 ${cmds.map((c, i) => `${i + 1}. ${c}`).join('\n') || '(no stage commands)'}
@@ -774,8 +781,9 @@ if (stageStop) {
 // The full suites run once here, after the last stage: mandatory, the one point that sees every lane together, and what
 // catches a break outside every stage's selection. A cheap runner runs them, so thousands of lines of output land in a
 // log, not in the integrator's context or ours.
+const fullAttempt = (A.retryStages || {}).full || 0
 const full = await agent(`${SHARED}
-YOUR JOB: you are the suite runner. Run the FULL suites once, in ${repoDir} (on ${featureBranch}), after every lane was
+YOUR JOB: you are the suite runner${fullAttempt ? ` (attempt ${fullAttempt})` : ''}. Run the FULL suites once, in ${repoDir} (on ${featureBranch}), after every lane was
 merged. You judge nothing and fix nothing. mkdir -p ${RUN_DIR}/logs, then run each command in order as
 \`<cmd> > ${RUN_DIR}/logs/integration-<n>.log 2>&1\` (n = its number below):
 ${(A.testCmds || []).map((c, i) => `${i + 1}. ${c}`).join('\n') || `1. ${TEST_CMDS}`}
